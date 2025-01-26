@@ -10,4 +10,12 @@
       <ProjectReference Include="..\RadixRouter\RadixRouter.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Shared\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AdditionalFiles Include="Shared\Layout\MainLayout.razor" />
+    </ItemGroup>
+
 </Project>
