@@ -3,6 +3,7 @@ using System.Security.Claims;
 using BlazingCore;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Caching.Memory;
+using RadixRouter.Shared;
 
 namespace RadixRouter;
 
@@ -161,16 +162,15 @@ public class RouteManager
                 route.RedirectUnauthorized = true;
                 route.RedirectUnauthorizedUrl = ((RedirectUnauthorized)redirectUnauthorizedAttr).Redirect;
             }
-
-            AuthorizeExt? authAttr = (AuthorizeExt?)Attribute.GetCustomAttribute(route.Handler, typeof(AuthorizeExt));
+            
+            AuthorizeExtAttributeBase? authAttr = (AuthorizeExtAttributeBase?)Attribute.GetCustomAttributes(route.Handler, typeof(AuthorizeExtAttributeBase), inherit: true).FirstOrDefault();
 
             if (authAttr is not null && !anyone)
             {
-                route.AuthorizedRoles = [];
-                route.AuthorizedRoles.AddRange(authAttr.TypedRoles);
+                route.AuthorizedRoles = new List<IRole>(authAttr.Roles);
             }
 
-            route.TypeFullnameLower = route.Handler.FullName?.ToLowerInvariant() ?? "";
+            route.TypeFullnameLower = route.Handler.FullName?.ToLowerInvariant() ?? string.Empty;
             route.EndsWithIndex = route.TypeFullnameLower.EndsWith("index");
 
             if (route.EndsWithIndex)
@@ -202,7 +202,7 @@ public class RouteManager
                     }
                 }
 
-                if (route.UriSegments != null)
+                if (route.UriSegments is not null)
                 {
                     AddToUnauthorizedRoutes(string.Join('/', route.UriSegments));
                 }

@@ -1,3 +1,5 @@
+using RadixRouter.Shared;
+
 namespace RadixRouter.Demo;
 
 [AuthRoleEnum]

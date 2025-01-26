@@ -43,72 +43,80 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
     private static bool HasAuthRoleEnumAttribute(INamedTypeSymbol enumSymbol)
         => enumSymbol.GetAttributes().Any(attr => attr.AttributeClass?.Name == "AuthRoleEnumAttribute");
 
-    private static void Execute(INamedTypeSymbol enumSymbol, SourceProductionContext context)
+   private static void Execute(INamedTypeSymbol enumSymbol, SourceProductionContext context)
     {
-        string source = $@"
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using {enumSymbol.ContainingNamespace};
+        string source = $$"""
+                          using System;
+                          using System.Collections.Generic;
+                          using System.Linq;
+                          using RadixRouter.Shared;
+                          using {{enumSymbol.ContainingNamespace}};
 
-#nullable enable
+                          #nullable enable
 
-namespace {enumSymbol.ContainingNamespace}
-{{
-    public sealed class {enumSymbol.Name}AuthRole : IRole
-    {{
-        public {enumSymbol.Name} Role {{ get; }}
-        public string Name => Role.ToString();
-        public int Value => (int)Role;
-
-        public {enumSymbol.Name}AuthRole({enumSymbol.Name} role)
-        {{
-            Role = role;
-        }}
-
-        public static implicit operator {enumSymbol.Name}AuthRole({enumSymbol.Name} role)
-            => new(role);
-
-        public override bool Equals(object? obj)
-            => obj is {enumSymbol.Name}AuthRole other && Role.Equals(other.Role);
-
-        public override int GetHashCode()
-            => Role.GetHashCode();
-
-        public override string ToString()
-            => Role.ToString();
-    }}
-
-    public static class {enumSymbol.Name}Extensions
-    {{
-        public static IEnumerable<IRole> ToAuthRoles(this IEnumerable<{enumSymbol.Name}> roles)
-            => roles.Select(r => new {enumSymbol.Name}AuthRole(r));
-
-        public static IEnumerable<{enumSymbol.Name}> FromAuthRoles(this IEnumerable<IRole> roles)
-            => roles.OfType<{enumSymbol.Name}AuthRole>().Select(r => r.Role);
-
-        public static {enumSymbol.Name}? TryParseRole(this IRole role)
-            => role is {enumSymbol.Name}AuthRole typedRole ? typedRole.Role : null;
-    }}
-
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
-    public sealed class AuthorizeExt : AuthorizeExtAttributeBase
-    {{
-        private readonly List<{enumSymbol.Name}AuthRole> _roles;
-        public override IEnumerable<IRole> Roles => _roles;
-
-        public AuthorizeExt({enumSymbol.Name} role)
-        {{
-            _roles = new List<{enumSymbol.Name}AuthRole> {{ new(role) }};
-        }}
-
-        public AuthorizeExt(params {enumSymbol.Name}[] roles)
-        {{
-            _roles = roles.Select(r => new {enumSymbol.Name}AuthRole(r)).ToList();
-        }}
-    }}
-}}";
+                          namespace {{enumSymbol.ContainingNamespace}}
+                          {
+                              public sealed class {{enumSymbol.Name}}AuthRole : IRole
+                              {
+                                  public {{enumSymbol.Name}} Role { get; }
+                                  public string Name => Role.ToString();
+                                  public int Value => (int)Role;
+                          
+                                  public {{enumSymbol.Name}}AuthRole({{enumSymbol.Name}} role)
+                                  {
+                                      Role = role;
+                                  }
+                          
+                                  public static implicit operator {{enumSymbol.Name}}AuthRole({{enumSymbol.Name}} role)
+                                      => new(role);
+                          
+                                  public override bool Equals(object? obj)
+                                      => obj is {{enumSymbol.Name}}AuthRole other && Role.Equals(other.Role);
+                          
+                                  public override int GetHashCode()
+                                      => Role.GetHashCode();
+                          
+                                  public override string ToString()
+                                      => Role.ToString();
+                              }
+                          
+                              public static class {{enumSymbol.Name}}Extensions
+                              {
+                                    public static IReadOnlyList<IRole> ToAuthRoles(this IEnumerable<{{enumSymbol.Name}}> roles)
+                                        => roles.Select(r => new {{enumSymbol.Name}}AuthRole(r)).ToList();
+                           
+                                    public static IReadOnlyList<{{enumSymbol.Name}}> FromAuthRoles(this IEnumerable<IRole> roles)
+                                        => roles.OfType<{{enumSymbol.Name}}AuthRole>().Select(r => r.Role).ToList();
+                           
+                                    public static {{enumSymbol.Name}}? TryParseRole(this IRole role)
+                                        => role is {{enumSymbol.Name}}AuthRole typedRole ? typedRole.Role : null;
+                              }
+                          
+                              [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
+                              public sealed class AuthorizeExt : AuthorizeExtAttributeBase
+                              {
+                                  private readonly List<{{enumSymbol.Name}}AuthRole> _roles;
+                                  public override IReadOnlyList<IRole> Roles => _roles;
+                          
+                                  public AuthorizeExt({{enumSymbol.Name}} role)
+                                  {
+                                      _roles = new List<{{enumSymbol.Name}}AuthRole> { new(role) };
+                                  }
+                          
+                                  public AuthorizeExt(params {{enumSymbol.Name}}[] roles)
+                                  {
+                                      _roles = roles.Select(r => new {{enumSymbol.Name}}AuthRole(r)).ToList();
+                                  }
+                                  
+                                  public AuthorizeExt(IEnumerable<{{enumSymbol.Name}}> roles)
+                                  {
+                                      _roles = roles.Select(r => new {{enumSymbol.Name}}AuthRole(r)).ToList();
+                                  }
+                              }
+                          }
+                          """;
 
         context.AddSource($"{enumSymbol.Name}AuthorizeExt.g.cs", source);
     }
+
 }

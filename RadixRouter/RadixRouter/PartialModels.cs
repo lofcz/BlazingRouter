@@ -46,38 +46,3 @@ public sealed class RedirectUnauthorized : Attribute
         Redirect = redirect;
     }
 }
-
-public interface IRole
-{
-    string Name { get; }
-    int Value { get; }
-}
-
-[AttributeUsage(AttributeTargets.Enum)]
-public class AuthRoleEnumAttribute : Attribute { }
-
-public abstract class AuthorizeExtAttributeBase : Attribute
-{
-    public abstract IEnumerable<IRole> Roles { get; }
-}
-
-[AttributeUsage(AttributeTargets.Class)]
-public class AuthorizeExt : Attribute
-{
-    public List<IRole> TypedRoles { get; set; }
-
-    public AuthorizeExt(IRole role)
-    {
-        TypedRoles = [role];
-    }
-
-    public AuthorizeExt(IEnumerable<IRole>? roles)
-    {
-        TypedRoles = roles?.ToList() ?? [];
-    }
-    
-    public AuthorizeExt(params IRole[] roles)
-    {
-        TypedRoles = roles.ToList();
-    }
-}

@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using EnumsNET;
 using Microsoft.Extensions.Caching.Memory;
+using RadixRouter.Shared;
 
 namespace RadixRouter;
 
