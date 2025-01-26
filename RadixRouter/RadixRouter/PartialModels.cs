@@ -53,18 +53,27 @@ public interface IRole
     int Value { get; }
 }
 
+[AttributeUsage(AttributeTargets.Enum)]
+public class AuthRoleEnumAttribute : Attribute { }
+
+public abstract class AuthorizeExtAttributeBase : Attribute
+{
+    public abstract IEnumerable<IRole> Roles { get; }
+}
+
+[AttributeUsage(AttributeTargets.Class)]
 public class AuthorizeExt : Attribute
 {
     public List<IRole> TypedRoles { get; set; }
 
     public AuthorizeExt(IRole role)
     {
-        TypedRoles = new List<IRole> {role};
+        TypedRoles = [role];
     }
 
     public AuthorizeExt(IEnumerable<IRole>? roles)
     {
-        TypedRoles = roles?.ToList() ?? new List<IRole>();
+        TypedRoles = roles?.ToList() ?? [];
     }
     
     public AuthorizeExt(params IRole[] roles)

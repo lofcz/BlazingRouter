@@ -15,5 +15,9 @@
       <PackageReference Include="BlazingCore" Version="1.0.0" />
       <PackageReference Include="Enums.NET" Version="5.0.0" />
     </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\RadixRouter.SourceGenerator\RadixRouter.SourceGenerator.csproj" />
+    </ItemGroup>
     
 </Project>
