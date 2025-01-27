@@ -10,7 +10,16 @@ public interface IRole
 }
 
 [AttributeUsage(AttributeTargets.Enum)]
-public class AuthRoleEnumAttribute : Attribute { }
+public class AuthRoleEnumAttribute : Attribute
+{
+    
+}
+
+[AttributeUsage(AttributeTargets.Enum)]
+public class AuthRolePrefabsEnumAttribute : Attribute
+{
+    
+}
 
 public abstract class AuthorizeExtAttributeBase : Attribute
 {
