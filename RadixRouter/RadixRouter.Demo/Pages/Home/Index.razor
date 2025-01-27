@@ -1,7 +1,23 @@
-﻿@inherits BlazingCore.ComponentBaseEx
+﻿@inherits AuthComponent
+@code {
+    
+}
 
 <PageTitle>Home</PageTitle>
 
 <h1>Hello, world!</h1>
 
 Welcome to your new app.
+
+@if (User?.Identity?.IsAuthenticated ?? false)
+{
+    <div>Jste přihlášen</div>
+    <button>Odhlásit</button>
+}
+else
+{
+    <div>Nejste přihlášen</div>
+    <button>Přihlásit: uživatel</button>
+    <button>Přihlásit: admin</button>
+    <button>Přihlásit: vývojář</button>
+}

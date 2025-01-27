@@ -15,33 +15,34 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
     {
         // Získáme všechny enum deklarace s [AuthRoleEnum] atributem
         IncrementalValuesProvider<INamedTypeSymbol?> enumDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
+            .ForAttributeWithMetadataName("RadixRouter.Shared.AuthRoleEnumAttribute", 
                 predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
-            .Where(static m => m is not null);
+                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx)
+            ).Where(static m => m is not null);
 
         // Registrujeme výstup
         context.RegisterSourceOutput(enumDeclarations,
             static (spc, enumSymbol) => Execute(enumSymbol!, spc));
     }
+    
+    private static bool IsSyntaxTargetForGeneration(SyntaxNode node) => node is EnumDeclarationSyntax { AttributeLists.Count: > 0 };
 
-    private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is EnumDeclarationSyntax { AttributeLists.Count: > 0 };
-
-    private static INamedTypeSymbol? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
+    private static INamedTypeSymbol? GetSemanticTargetForGeneration(GeneratorAttributeSyntaxContext context)
     {
-        EnumDeclarationSyntax enumDeclaration = (EnumDeclarationSyntax)context.Node;
+        EnumDeclarationSyntax enumDeclaration = (EnumDeclarationSyntax)context.TargetNode;
         SemanticModel model = context.SemanticModel;
-        
-        INamedTypeSymbol? enumSymbol = model.GetDeclaredSymbol(enumDeclaration) as INamedTypeSymbol;
-        if (enumSymbol == null) return null;
+
+        if (model.GetDeclaredSymbol(enumDeclaration) is not INamedTypeSymbol enumSymbol)
+        {
+            return null;
+        }
 
         // Kontrola, zda má enum [AuthRoleEnum] atribut
         return HasAuthRoleEnumAttribute(enumSymbol) ? enumSymbol : null;
     }
 
     private static bool HasAuthRoleEnumAttribute(INamedTypeSymbol enumSymbol)
-        => enumSymbol.GetAttributes().Any(attr => attr.AttributeClass?.Name == "AuthRoleEnumAttribute");
+        => enumSymbol.GetAttributes().Any(attr => attr.AttributeClass?.Name is "AuthRoleEnumAttribute");
 
    private static void Execute(INamedTypeSymbol enumSymbol, SourceProductionContext context)
     {
@@ -112,11 +113,43 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                                   {
                                       _roles = roles.Select(r => new {{enumSymbol.Name}}AuthRole(r)).ToList();
                                   }
+                                  
+                                  public AuthorizeExt(List<{{enumSymbol.Name}}> roles)
+                                  {
+                                      _roles = roles.Select(r => new {{enumSymbol.Name}}AuthRole(r)).ToList();
+                                  }
                               }
                           }
                           """;
 
         context.AddSource($"{enumSymbol.Name}AuthorizeExt.g.cs", source);
+        ExecuteExtension(enumSymbol, context);
     }
 
+    private static void ExecuteExtension(INamedTypeSymbol enumSymbol, SourceProductionContext context)
+    {
+        string source = $$"""
+                          using System;
+                          using System.Reflection;
+                          using Microsoft.Extensions.DependencyInjection;
+
+                          #nullable enable
+                          
+                          namespace {{enumSymbol.ContainingNamespace}}
+                          {
+                              public static class {{enumSymbol.Name}}BlazingRouterExtensions
+                              {
+                                  public static IBlazingRouterBuilder<{{enumSymbol.Name}}> AddBlazingRouter(this IServiceCollection services, Assembly? assembly = null)
+                                  {
+                                      services.AddSingleton<RouteManager>();
+                                      BlazingRouterBuilder<{{enumSymbol.Name}}> builder = new BlazingRouterBuilder<{{enumSymbol.Name}}>();
+                                      RouteManager.InitRouteManager(assembly ?? Assembly.GetExecutingAssembly(), builder);
+                                      return builder;
+                                  }
+                              }
+                          }
+                          """;
+
+        context.AddSource($"{enumSymbol.Name}BlazingRouterExtensions.g.cs", source);
+    }
 }

@@ -9,13 +9,25 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddMemoryCache();
         builder.Services.AddSignalR();
         
         // Add services to the container.
-        builder.Services.AddBlazingRouter(Assembly.GetExecutingAssembly());
+        builder.Services.AddBlazingRouter()
+            .Configure(x =>
+            {
+                x.HasRole = (principal, roles) =>
+                {
+                    if (roles is MyRoles.Admin)
+                    {
+                        
+                    }
+                    
+                    return true;
+                };
+            });
         
         builder.Services.AddMvc(x => x.EnableEndpointRouting = false);
         builder.Services.AddRazorPages();
@@ -49,7 +61,7 @@ public class Program
             });
 
 
-        var app = builder.Build();
+        WebApplication app = builder.Build();
 
         // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())

@@ -11,9 +11,9 @@ namespace RadixRouter;
 
 internal static class Extensions
 {
-    public static bool IsInRoleAny(this ClaimsPrincipal p, IEnumerable<IRole> roles, bool proxyObserver = true)
+    public static bool IsInRoleAny(this ClaimsPrincipal p, IEnumerable<IRole> roles)
     {
-        return true; // roles.Any(x => p.IsInRole(x, proxyObserver));
+        return roles.Any(x => RouteManager.Builder.HasAccess(p, x.Value));
     }
     
     public static void Forever(this IMemoryCache cache, string key, object? value)

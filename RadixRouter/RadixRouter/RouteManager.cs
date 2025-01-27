@@ -70,13 +70,17 @@ public class RouteManager
     private static BlazingRouter Router;
     private static readonly HashSet<string> Controllers = [];
     private static readonly Dictionary<string, bool> UsedExpandedRoutes = [];
-
+    
+    internal static IBaseBlazingRouterBuilder Builder;
+    
     public RouteManager(IMemoryCache cache)
     {
+      
     }
 
-    public static void InitRouteManager(Assembly assembly)
+    public static void InitRouteManager(Assembly assembly, IBaseBlazingRouterBuilder builder)
     {
+        Builder = builder;
         PageComponentTypes = assembly.ExportedTypes.Where(t => t.Namespace != null && (t.IsSubclassOf(typeof(ComponentBase)) || t.IsSubclassOf(typeof(ComponentBaseInternal))) && t.Namespace.Contains(".Pages")).ToList();
         
         foreach (Type t in PageComponentTypes)

@@ -36,6 +36,8 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
     private AuthenticationStateProvider Asp { get; set; }
     private AuthenticationState? authState { get; set; }
     
+    internal RouteManager Manager { get; set; }
+    
     public static readonly HashSet<string> AllowedUnauthorizedUrls = [
         string.Empty, "/", "home", "home/index", "account/login", "account/register", "account/school",
         "account/externallogincallback", "/home/changelog", "account/forgotpassword",
@@ -46,10 +48,10 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
         "about", "vop", "ukazky", "ukazka", "ukazky-priprav", "demo/i18n", "tos", "terms-of-service", "podminky", "podminky-sluzby", "podminky-uzivani"
     ];
 
-    private static BlazingRouter AllowedUnauthorizedRouter = default!;
+    private static BlazingRouter AllowedUnauthorizedRouter = null!;
     private static readonly Dictionary<string, object?> emptyQueryParamsDict = [];
     
-    public static void SetupUnauthorizedRouterExt()
+    internal static void SetupUnauthorizedRouterExt()
     {
         List<Route> routes = AllowedUnauthorizedUrls.Select(x => new Route(x)).ToList();
         AllowedUnauthorizedRouter = new BlazingRouter(routes);
@@ -64,7 +66,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
         NavigationManager.LocationChanged += HandleLocationChanged;
     }
     
-    private static string UnauthorizedRedirectUrl(string? relativeUrl)
+    private string UnauthorizedRedirectUrl(string? relativeUrl)
     {
         return relativeUrl.IsNullOrWhiteSpace() ? $"/account/login" : $"/account/login?r={relativeUrl.EncodeUri()}";
     }
