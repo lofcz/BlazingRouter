@@ -20,5 +20,6 @@
     </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\RadixRouter.Shared\RadixRouter.Shared.csproj" />
+      <ProjectReference Include="..\SourceGeneratorHelpers\SourceGeneratorHelpers.csproj" />
     </ItemGroup>
 </Project>

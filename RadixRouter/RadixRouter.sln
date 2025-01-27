@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RadixRouter.SourceGenerator
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RadixRouter.Shared", "RadixRouter.Shared\RadixRouter.Shared.csproj", "{AE2D2471-F45D-4B22-A40D-A9BBF1615498}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceGeneratorHelpers", "SourceGeneratorHelpers\SourceGeneratorHelpers.csproj", "{6444C648-D70B-4DE6-AE63-D5BEC5FE63E2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{AE2D2471-F45D-4B22-A40D-A9BBF1615498}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AE2D2471-F45D-4B22-A40D-A9BBF1615498}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AE2D2471-F45D-4B22-A40D-A9BBF1615498}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6444C648-D70B-4DE6-AE63-D5BEC5FE63E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6444C648-D70B-4DE6-AE63-D5BEC5FE63E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6444C648-D70B-4DE6-AE63-D5BEC5FE63E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6444C648-D70B-4DE6-AE63-D5BEC5FE63E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
