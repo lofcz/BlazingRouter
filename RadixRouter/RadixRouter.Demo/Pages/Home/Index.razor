@@ -1,6 +1,18 @@
-﻿@inherits AuthComponent
+﻿@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@inherits AuthComponent
+@inject NavigationManager Nm
 @code {
-    
+
+    void LoginAs(MyRoles role)
+    {
+        Nm.NavigateTo($"/login/login?role={(int)role}", true);
+    }
+
+    void Logout()
+    {
+        Nm.NavigateTo($"/login/logout", true);
+    }
 }
 
 <PageTitle>Home</PageTitle>
@@ -11,13 +23,13 @@ Welcome to your new app.
 
 @if (User?.Identity?.IsAuthenticated ?? false)
 {
-    <div>Jste přihlášen</div>
-    <button>Odhlásit</button>
+    <div>Jste přihlášen jako @((MyRoles)int.Parse(User.Claims.FirstOrDefault()?.Value))</div>
+    <button @onclick="Logout">Odhlásit</button>
 }
 else
 {
     <div>Nejste přihlášen</div>
-    <button>Přihlásit: uživatel</button>
-    <button>Přihlásit: admin</button>
-    <button>Přihlásit: vývojář</button>
+    <button @onclick="@(() => LoginAs(MyRoles.User))">Přihlásit: uživatel</button>
+    <button @onclick="@(() => LoginAs(MyRoles.Admin))">Přihlásit: admin</button>
+    <button @onclick="@(() => LoginAs(MyRoles.Developer))">Přihlásit: vývojář</button>
 }

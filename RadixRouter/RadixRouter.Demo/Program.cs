@@ -31,6 +31,9 @@ public class Program
         
         builder.Services.AddMvc(x => x.EnableEndpointRouting = false);
         builder.Services.AddRazorPages();
+        
+        builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        builder.Services.AddHttpContextAccessor();
 
         builder.Services.AddAuthentication(x =>
         {

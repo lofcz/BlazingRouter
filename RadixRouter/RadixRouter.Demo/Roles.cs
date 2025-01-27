@@ -7,5 +7,6 @@ public enum MyRoles
 {
     Unknown,
     User,
-    Admin
+    Admin,
+    Developer
 }
