@@ -34,11 +34,11 @@ jobs:
     - name: Build Source Generator
       run: dotnet build ./RadixRouter/RadixRouter.SourceGenerator/RadixRouter.SourceGenerator.csproj --no-restore
 
-    - name: Build Solution
-      run: dotnet build ./RadixRouter/RadixRouter.sln /p:Configuration=Release /p:RoslynVersion=4.10.0
+    - name: Build Main Library
+      run: dotnet build ./RadixRouter/RadixRouter/RadixRouter.csproj -c Release
 
     - name: Test
-      run: dotnet test ./RadixRouter/RadixRouter.Tests --no-build --verbosity normal
+      run: dotnet test ./RadixRouter/RadixRouter.Tests/RadixRouter.Tests.csproj -c Release --no-build --verbosity normal
 
     - name: Update GitHub status check
       if: always()
