@@ -31,8 +31,11 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore ./RadixRouter/RadixRouter.sln
 
-    - name: Build
-      run: dotnet build ./RadixRouter/RadixRouter.sln --no-restore
+    - name: Build Source Generator
+      run: dotnet build ./RadixRouter/RadixRouter.SourceGenerator/RadixRouter.SourceGenerator.csproj --no-restore
+
+    - name: Build Solution
+      run: dotnet msbuild ./RadixRouter/RadixRouter.sln /p:Configuration=Release /graphBuild
 
     - name: Test
       run: dotnet test ./RadixRouter/RadixRouter.Tests --no-build --verbosity normal
