@@ -27,15 +27,18 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '20'
-        
-    - name: Restore dependencies
-      run: dotnet restore ./RadixRouter/RadixRouter.sln
 
     - name: Build Source Generator
-      run: dotnet build ./RadixRouter/RadixRouter.SourceGenerator/RadixRouter.SourceGenerator.csproj --no-restore
+      run: dotnet build ./RadixRouter/RadixRouter.SourceGenerator/RadixRouter.SourceGenerator.csproj -c Release -v detailed
 
     - name: Build Solution
-      run: dotnet msbuild ./RadixRouter/RadixRouter.sln /p:Configuration=Release /graphBuild
+      run: |
+        dotnet msbuild ./RadixRouter/RadixRouter.sln \
+          /p:Configuration=Release \
+          /restore \
+          /v:detailed \
+          /p:GenerateFullPaths=true \
+          /consoleloggerparameters:Summary
 
     - name: Test
       run: dotnet test ./RadixRouter/RadixRouter.Tests --no-build --verbosity normal
