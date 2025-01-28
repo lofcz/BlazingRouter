@@ -10,12 +10,17 @@ public enum MyRoles
     Admin,
     Developer,
     Role4,
-    Role5
+    Role5,
+    Role6
 }
 
 [AuthRolePrefabsEnum]
 public enum MyRolePrefabs
 {
+    /// <inheritdoc cref="MyRolePrefabsDocs.NewPrefab"/>
+    [RolePrefab(MyRoles.Admin + 4)]
+    NewPrefab,
+    
     /// <inheritdoc cref="MyRolePrefabsDocs.AdminOrDeveloper"/>
     [RolePrefab([MyRoles.Admin, MyRoles.Developer, MyRoles.Role4])]
     AdminOrDeveloper,
@@ -30,10 +35,6 @@ public enum MyRolePrefabs
     
     /// <inheritdoc cref="MyRolePrefabsDocs.UserOrHigher"/>
     [RolePrefab([MyRoles.User, MyRoles.Role5], AdminOrHigher)]
-    UserOrHigher,
-    
-    /// <inheritdoc cref="MyRolePrefabsDocs.NewPrefab"/>
-    [RolePrefab([MyRoles.User], [UserOrHigher, AdminOrDeveloper])]
-    NewPrefab
+    UserOrHigher
 }
 

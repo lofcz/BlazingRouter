@@ -1,13 +1,11 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
 using System.Collections.Immutable;
 using System.Linq;
-using SourceGeneratorHelpers.External;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace RadixRouter.SourceGenerator;
 
@@ -62,39 +60,48 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
             IncludedPrefabs = includedPrefabs;
         }
     }
-
-    private static string[] ProcessTypedConstantArray(TypedConstant constant)
+    
+    static class EnumCache
     {
-        if (constant.Kind == TypedConstantKind.Array)
+        // Statická cache pro mapování typu enumu na jeho hodnoty a názvy
+        private static readonly Dictionary<ITypeSymbol, Dictionary<int, string>> Cache = [];
+
+        public static string? GetEnumName(ITypeSymbol enumType, int value)
         {
-            // Pokud je argument pole, iterujeme přes jeho hodnoty
-            return constant.Values
-                .Select(ProcessTypedConstant)
-                .Where(v => v != null)
-                .Select(v => v!)
-                .ToArray();
+            // Pokud cache obsahuje typ enumu, pokusíme se najít odpovídající hodnotu
+            if (Cache.TryGetValue(enumType, out Dictionary<int, string>? valueToNameMap) && valueToNameMap.TryGetValue(value, out string? name))
+            {
+                return name;
+            }
+
+            return null;
         }
 
-        // Pokud není pole, vrátíme prázdné pole
-        return [];
-    }
-
-    private static string? ProcessTypedConstant(TypedConstant constant)
-    {
-        if (constant.Kind == TypedConstantKind.Enum)
+        public static void PopulateCache(ITypeSymbol enumType)
         {
-            // Pokud je argument odkaz na enum, vrátíme jeho hodnotu jako řetězec
-            return constant.Value?.ToString();
-        }
+            // Pokud cache již obsahuje typ enumu, nic neděláme
+            if (Cache.ContainsKey(enumType))
+            {
+                return;
+            }
 
-        if (constant.Kind == TypedConstantKind.Primitive)
-        {
-            // Pokud je argument primitivní hodnota (např. int, string), vrátíme ji jako řetězec
-            return constant.Value?.ToString();
-        }
+            // Vytvoříme mapu hodnot a názvů pro daný enum
+            Dictionary<int, string> valueToNameMap = new Dictionary<int, string>();
 
-        // Pokud není ani enum, ani primitivní hodnota, vrátíme null
-        return null;
+            if (enumType is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeKind == TypeKind.Enum)
+            {
+                foreach (IFieldSymbol? member in namedTypeSymbol.GetMembers().OfType<IFieldSymbol>())
+                {
+                    if (member.HasConstantValue && member.ConstantValue is int intValue)
+                    {
+                        valueToNameMap[intValue] = member.Name;
+                    }
+                }
+            }
+
+            // Přidáme mapu do cache
+            Cache[enumType] = valueToNameMap;
+        }
     }
     
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -129,7 +136,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
         RegisterMainGeneration(context);
     }
 
-    private void RegisterMainGeneration(IncrementalGeneratorInitializationContext context)
+    private static void RegisterMainGeneration(IncrementalGeneratorInitializationContext context)
     {
         // Provider pro AuthRoleEnum
         IncrementalValuesProvider<SourcegenEnumMetadata> enumDeclarations = context.SyntaxProvider
@@ -210,19 +217,41 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
         {
             Optional<object?> constantValue = semanticModel.GetConstantValue(expression);
 
-            ISymbol? symbolInfo2 = semanticModel.GetSymbolInfo(expression).Symbol;
-            string? name = null;
-            
+            ISymbol? symbolInfo2 = ModelExtensions.GetSymbolInfo(semanticModel, expression).Symbol;
+
+            // quick path for syntax [Enum(Role.X)]
             if (symbolInfo2 is IFieldSymbol fieldSymbol2 && fieldSymbol2.ContainingType.TypeKind == TypeKind.Enum)
             {
-                name = fieldSymbol2.Name;
+                string? name = fieldSymbol2.Name;
+
+                if (constantValue.HasValue)
+                {
+                    return new RoleInfo((int)constantValue.Value, name);
+                }
             }
             
-            if (constantValue.HasValue)
+            // if we got something else, for example binary expr [Rnum(Role.X + 1)]
+            if (constantValue is { HasValue: true, Value: int intValue })
             {
-                return new RoleInfo((int)constantValue.Value, name);
-            }
+                // Získáme typ výrazu
+                ITypeSymbol? typeSymbol = semanticModel.GetTypeInfo(expression).Type;
 
+                // Pokud je typ enum, pokusíme se najít odpovídající hodnotu v cache
+                if (typeSymbol is INamedTypeSymbol { TypeKind: TypeKind.Enum } namedTypeSymbol)
+                {
+                    // Naplníme cache, pokud ještě není naplněna
+                    EnumCache.PopulateCache(namedTypeSymbol);
+
+                    // Pokusíme se najít odpovídající název v cache
+                    string? name = EnumCache.GetEnumName(namedTypeSymbol, intValue);
+
+                    if (name != null)
+                    {
+                        return new RoleInfo(intValue, name);
+                    }
+                }
+            }
+            
             return null;
         }
 
@@ -234,7 +263,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                     HashSet<RoleInfo> roles = [];
                     
                     if (!processedPrefabs.Add(prefabField.Name))
-                        return roles; // Zamezení cyklické závislosti
+                        return roles;
 
                     AttributeData? attr = prefabField.GetAttributes()
                         .FirstOrDefault(a => a.AttributeClass?.Name is "RolePrefabAttribute");
@@ -249,14 +278,12 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                         
                         foreach (RoleInfo includedPrefab in includedPrefabs)
                         {
-                            // Najdeme odpovídající pole v enumu prefabů
                             IFieldSymbol? includedField = prefabField.ContainingType.GetMembers()
                                 .OfType<IFieldSymbol>()
                                 .FirstOrDefault(f => f.Name == includedPrefab.Name);
 
                             if (includedField != null)
                             {
-                                // Rekurzivně zpracujeme vnořený prefab
                                 HashSet<RoleInfo> nestedRoles = GetAllRolesForPrefab(includedField, semanticModel, processedPrefabs);
                                 foreach (RoleInfo role in nestedRoles)
                                 {
@@ -272,8 +299,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
 
                     return roles;
                 }
-
-        // Provider pro AuthRolePrefabsEnum
+        
         IncrementalValuesProvider<SourcegenEnumMetadata> prefabEnumDeclarations = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 "RadixRouter.Shared.AuthRolePrefabsEnumAttribute",
@@ -308,23 +334,21 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                         prefabEnumName: prefabEnum.Name,
                         prefabMembers: new EquatableArray<PrefabMemberMetadata>(prefabMembers));
                 });
+        
+        IncrementalValuesProvider<(SourcegenEnumMetadata Left, ImmutableArray<SourcegenEnumMetadata> Right)> combined = enumDeclarations.Combine(prefabEnumDeclarations.Collect());
 
-        // Kombinace enumDeclarations a prefabEnumDeclarations
-        IncrementalValuesProvider<(SourcegenEnumMetadata Left, ImmutableArray<SourcegenEnumMetadata> Right)> combined =
-            enumDeclarations.Combine(prefabEnumDeclarations.Collect());
-
-        // Registrace generování základního AuthRole
+        // always generate [AuthRole]
         context.RegisterSourceOutput(combined,
             static (spc, pair) => Execute(
                 pair.Left,  // roleEnum metadata
-                pair.Right.FirstOrDefault(),  // první nalezený prefab enum
+                pair.Right.FirstOrDefault(),
                 spc));
 
-        // Registrace generování RolePrefab
+        // [RolePrefab] gen
         context.RegisterSourceOutput(combined,
             static (spc, pair) => ExecutePrefab(
                 pair.Left,  // roleEnum metadata
-                pair.Right.FirstOrDefault(),  // první nalezený prefab enum
+                pair.Right.FirstOrDefault(),
                 spc));
     }
 
@@ -335,12 +359,12 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
         EnumDeclarationSyntax enumDeclaration = (EnumDeclarationSyntax)context.TargetNode;
         SemanticModel model = context.SemanticModel;
 
-        if (model.GetDeclaredSymbol(enumDeclaration) is not INamedTypeSymbol enumSymbol)
+        if (ModelExtensions.GetDeclaredSymbol(model, enumDeclaration) is not INamedTypeSymbol enumSymbol)
         {
             return null;
         }
 
-        // Kontrola, zda má enum [AuthRoleEnum] atribut
+        // check for [AuthRoleEnum]
         return HasAuthRoleEnumAttribute(enumSymbol) ? enumSymbol : null;
     }
     
@@ -354,41 +378,43 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
     {
        string prefabCtors = prefabEnum != null
         ? $$"""
-
-            {{string.Join("\n        ", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-            private static readonly List<{{roleEnum.Name}}AuthRole> _{{p.MemberName}}Roles = new() { {{string.Join(", ", p.Roles.Select(r => $"new {roleEnum.Name}AuthRole({roleEnum.Name}.{r.Name})"))}} };
-            """))}}
-
-            public AuthorizeExt({{prefabEnum.Value.Name}} prefab)
-            {
-                _roles = prefab switch
-                {
-                    {{string.Join("\n                ", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-                    {{prefabEnum.Value.Name}}.{{p.MemberName}} => _{{p.MemberName}}Roles,
+            
+            
+                    {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                    private static readonly List<{{roleEnum.Name}}AuthRole> {{p.MemberName}}Roles = [ {{string.Join(", ", p.Roles.Where(x => !string.IsNullOrEmpty(x.Name)).Select(r => $"new {roleEnum.Name}AuthRole({roleEnum.Name}.{r.Name})"))}} ];
                     """))}}
-                    _ => new List<{{roleEnum.Name}}AuthRole>()
-                };
-            }
 
-            public AuthorizeExt(params {{prefabEnum.Value.Name}}[] prefabs)
-            {
-                var allRoles = new HashSet<{{roleEnum.Name}}AuthRole>();
-                foreach (var prefab in prefabs)
-                {
-                    switch (prefab)
+                    public AuthorizeExt({{prefabEnum.Value.Name}} prefab)
                     {
-                        {{string.Join("\n                    ", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-                        case {{prefabEnum.Value.Name}}.{{p.MemberName}}:
-                            allRoles.UnionWith(_{{p.MemberName}}Roles);
-                            break;
-                        """))}}
+                        roles = prefab switch
+                        {
+                            {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                                            {{prefabEnum.Value.Name}}.{{p.MemberName}} => {{p.MemberName}}Roles,
+                            """))}}
+                            _ => new List<{{roleEnum.Name}}AuthRole>()
+                        };
                     }
-                }
-                _roles = allRoles.ToList();
-            }
+
+                    public AuthorizeExt(params {{prefabEnum.Value.Name}}[] prefabs)
+                    {
+                        var allRoles = new HashSet<{{roleEnum.Name}}AuthRole>();
+                        foreach (var prefab in prefabs)
+                        {
+                            switch (prefab)
+                            {
+                                {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                                case {{prefabEnum.Value.Name}}.{{p.MemberName}}:
+                                    allRoles.UnionWith({{p.MemberName}}Roles);
+                                    break;
+                                """))}}
+                            }
+                        }
+                        
+                        roles = allRoles.ToList();
+                    }
 
             """
-        : "";
+        : string.Empty;
             
         string source = $$"""
                           using System;
@@ -440,27 +466,27 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                               [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
                               public sealed class AuthorizeExt : AuthorizeExtAttributeBase
                               {
-                                  private readonly List<{{roleEnum.Name}}AuthRole> _roles;
-                                  public override IReadOnlyList<IRole> Roles => _roles;
+                                  private readonly List<{{roleEnum.Name}}AuthRole> roles;
+                                  public override IReadOnlyList<IRole> Roles => roles;
                           
                                   public AuthorizeExt({{roleEnum.Name}} role)
                                   {
-                                      _roles = new List<{{roleEnum.Name}}AuthRole> { new(role) };
+                                      this.roles = new List<{{roleEnum.Name}}AuthRole> { new(role) };
                                   }
                           
                                   public AuthorizeExt(params {{roleEnum.Name}}[] roles)
                                   {
-                                      _roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
+                                      this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }
                                   
                                   public AuthorizeExt(IEnumerable<{{roleEnum.Name}}> roles)
                                   {
-                                      _roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
+                                      this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }
                                   
                                   public AuthorizeExt(List<{{roleEnum.Name}}> roles)
                                   {
-                                      _roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
+                                      this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }{{prefabCtors}}
                               }
                           }
@@ -469,7 +495,6 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
         context.AddSource($"{roleEnum.Name}AuthorizeExt.g.cs", source);
         ExecuteExtension(roleEnum, context);
     }
-
 
     private static void ExecuteExtension(SourcegenEnumMetadata sourcegenEnumSymbol, SourceProductionContext context)
     {
@@ -568,6 +593,4 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
 
         context.AddSource($"{roleEnumMetadata.Name}RolePrefab.g.cs", source);
     }
-
-
 }
