@@ -8,8 +8,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\RadixRouter\RadixRouter.csproj" />
+        <ProjectReference Include="..\RadixRouter\RadixRouter.csproj" />
         <ProjectReference Include="..\RadixRouter.SourceGenerator\RadixRouter.SourceGenerator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </ProjectReference>
+        <ProjectReference Include="..\RadixRouter.Analyzer\RadixRouter.Analyzer.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </ProjectReference>
+        <ProjectReference Include="..\RadixRouter.CodeFix\RadixRouter.CodeFix.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false">
             <PrivateAssets>all</PrivateAssets>

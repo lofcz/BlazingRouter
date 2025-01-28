@@ -18,7 +18,7 @@ public enum MyRoles
 public enum MyRolePrefabs
 {
     /// <inheritdoc cref="MyRolePrefabsDocs.NewPrefab"/>
-    [RolePrefab(MyRoles.Admin + 4)]
+    [RolePrefab(MyRoles.Admin + (4 - 3))]
     NewPrefab,
     
     /// <inheritdoc cref="MyRolePrefabsDocs.AdminOrDeveloper"/>
