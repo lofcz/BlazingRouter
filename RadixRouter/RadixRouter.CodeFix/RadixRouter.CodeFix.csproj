@@ -5,6 +5,14 @@
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <PackageId>BlazingRouter.Analyzers</PackageId>
+        <Title>BlazingRouter Analyzers</Title>
+        <Authors>Matěj "lofcz" Štágl</Authors>
+        <PackageProjectUrl>https://github.com/lofcz/blazingrouter</PackageProjectUrl>
+        <RepositoryUrl>git</RepositoryUrl>
+        <PackageTags>router,routing,middleware</PackageTags>
+        <PackageIcon>icon.png</PackageIcon>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
@@ -19,6 +27,10 @@
 
     <ItemGroup>
       <ProjectReference Include="..\RadixRouter.Analyzer\RadixRouter.Analyzer.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
 </Project>
