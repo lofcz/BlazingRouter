@@ -29,16 +29,16 @@ jobs:
         node-version: '20'
         
     - name: Restore dependencies
-      run: dotnet restore ./RadixRouter/RadixRouter.sln
+      run: dotnet restore ./BlazingRouter/BlazingRouter.sln
 
     - name: Build Source Generator
-      run: dotnet build ./RadixRouter/RadixRouter.SourceGenerator/RadixRouter.SourceGenerator.csproj --no-restore
+      run: dotnet build ./BlazingRouter/BlazingRouter.SourceGenerator/BlazingRouter.SourceGenerator.csproj --no-restore
 
     - name: Build Main Library
-      run: dotnet build ./RadixRouter/RadixRouter/RadixRouter.csproj -c Release
+      run: dotnet build ./BlazingRouter/BlazingRouter/BlazingRouter.csproj -c Release
 
     - name: Run Tests
-      run: dotnet test ./RadixRouter/RadixRouter.Tests/RadixRouter.Tests.csproj -c Release --verbosity normal
+      run: dotnet test ./BlazingRouter/BlazingRouter.Tests/BlazingRouter.Tests.csproj -c Release --verbosity normal
 
     - name: Update GitHub status check
       if: always()

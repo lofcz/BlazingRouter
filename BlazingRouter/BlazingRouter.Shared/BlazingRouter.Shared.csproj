@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>preview</LangVersion>
+        <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageId>BlazingRouter.Shared</PackageId>
+        <Title>Shared types for Blazing Router</Title>
+        <Authors>Matěj "lofcz" Štágl</Authors>
+        <PackageProjectUrl>https://github.com/lofcz/BlazingRouter</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageIcon>icon.png</PackageIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath=""/>
+    </ItemGroup>
+
+</Project>
