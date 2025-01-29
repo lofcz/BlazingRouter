@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components;
 using BlazingRouter.Demo.Components;
+using BlazingRouter.Demo.Pages.Home;
 
 namespace BlazingRouter.Demo;
 
@@ -13,7 +14,7 @@ public class Program
 
         builder.Services.AddMemoryCache();
         builder.Services.AddSignalR();
-        
+
         // Add services to the container.
         builder.Services.AddBlazingRouter()
             .Configure(x =>
@@ -27,7 +28,20 @@ public class Program
                     
                     return true;
                 };
-            });
+
+                x.OnPageScanned = (type) =>
+                {
+                    // add custom routes here
+                    if (type == typeof(CustomRoute))
+                    {
+                        Route customRoute = new Route("/this/is/custom", type);
+                        return [ customRoute ];   
+                    }
+
+                    return [];
+                };
+            })
+            .Build();
         
         builder.Services.AddMvc(x => x.EnableEndpointRouting = false);
         builder.Services.AddRazorPages();

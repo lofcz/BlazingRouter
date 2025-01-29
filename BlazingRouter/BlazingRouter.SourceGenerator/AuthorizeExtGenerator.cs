@@ -513,7 +513,6 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                                   {
                                       services.AddSingleton<RouteManager>();
                                       BlazingRouterBuilder<{{sourcegenEnumSymbol.Name}}> builder = new BlazingRouterBuilder<{{sourcegenEnumSymbol.Name}}>();
-                                      RouteManager.InitRouteManager(assembly ?? Assembly.GetExecutingAssembly(), builder);
                                       return builder;
                                   }
                               }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Claims;
 using BlazingCore;
+using BlazingRouter.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Caching.Memory;
 using BlazingRouter.Shared;
@@ -30,14 +31,41 @@ public class Route
     {
     }
 
-    public Route(string fullRoute)
+    internal Route(string fullRoute)
     {
-        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToArray();
+        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
     }
-
-    public Route(string[]? uriSegments, Type handler)
+    
+    /// <summary>
+    /// Creates a route from a route, e.g. /test/ping. Segments should be delimited by "/"
+    /// </summary>
+    /// <param name="fullRoute"></param>
+    /// <param name="handler"></param>
+    public Route(string fullRoute, Type handler)
+    {
+        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        Handler = handler;
+    }
+    
+    /// <summary>
+    /// Creates a route from an array of segments.
+    /// </summary>
+    /// <param name="uriSegments"></param>
+    /// <param name="handler"></param>
+    public Route(string[] uriSegments, Type handler)
     {
         UriSegments = uriSegments;
+        Handler = handler;
+    }
+    
+    /// <summary>
+    /// Creates a route from an enumerable strings of segments.
+    /// </summary>
+    /// <param name="uriSegments"></param>
+    /// <param name="handler"></param>
+    public Route(IEnumerable<string> uriSegments, Type handler)
+    {
+        UriSegments = uriSegments.ToArray();
         Handler = handler;
     }
 
@@ -105,6 +133,9 @@ public class RouteManager
                     Routes.Add(new Route(routeSegments, t));
                 }
             }
+            
+            List<Route> addedRoutes = builder.OnPageScanned?.Invoke(t) ?? [];
+            Routes.AddRange(addedRoutes);
 
             /*List<LocalizedRouteAttribute> localizedAttributes = t.GetCustomAttributes<LocalizedRouteAttribute>().ToList();
 

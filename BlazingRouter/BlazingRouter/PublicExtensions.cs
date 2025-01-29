@@ -8,12 +8,14 @@ namespace BlazingRouter;
 
 public interface IBaseBlazingRouterBuilder
 {
-    bool HasAccess(ClaimsPrincipal user, int role);
+    public bool HasAccess(ClaimsPrincipal user, int role);
+    public Func<Type, List<Route>?>? OnPageScanned { get; }
 }
 
 public interface IBlazingRouterBuilder<TEnum> : IBaseBlazingRouterBuilder where TEnum : struct, Enum
 {
     public IBlazingRouterBuilder<TEnum> Configure(Action<BlazingRouterContext<TEnum>> context);
+    public void Build(Assembly? assembly = null);
 }
 
 public class BlazingRouterBuilder<TEnum> : IBlazingRouterBuilder<TEnum> where TEnum : struct, Enum
@@ -31,6 +33,13 @@ public class BlazingRouterBuilder<TEnum> : IBlazingRouterBuilder<TEnum> where TE
         return validValues.Contains(role) && context.HasRole is not null && context.HasRole(user, Unsafe.As<int, TEnum>(ref role));
     }
 
+    public void Build(Assembly? assembly = null)
+    {
+        RouteManager.InitRouteManager(assembly ?? Assembly.GetCallingAssembly(), this);
+    }
+
+    public Func<Type, List<Route>?>? OnPageScanned => context.OnPageScanned;
+
     public IBlazingRouterBuilder<TEnum> Configure(Action<BlazingRouterContext<TEnum>> ctx)
     {
         ctx(context);
@@ -42,4 +51,5 @@ public class BlazingRouterBuilder<TEnum> : IBlazingRouterBuilder<TEnum> where TE
 public class BlazingRouterContext<TEnum> where TEnum : Enum
 {
     public Func<ClaimsPrincipal, TEnum, bool>? HasRole { get; set; }
+    public Func<Type, List<Route>?>? OnPageScanned { get; set; }
 }
