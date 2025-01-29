@@ -1,0 +1,11 @@
+@page "/blog/post/{ival:int}"
+@using global::BlazingRouter.Shared
+@attribute [AuthorizeAnyone]
+@code {
+
+    [Parameter]
+    public int Ival { get; set; }
+
+}
+
+<h1>Ival: @Ival</h1>

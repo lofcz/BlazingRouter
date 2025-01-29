@@ -34,7 +34,7 @@ public class Program
 
                 x.OnSetupAllowedUnauthorizedRoles = () =>
                 {
-                    return [];
+                    return [ "/home/unauthorized" ];
                 };
 
                 x.OnRedirectUnauthorized = (user, route) =>

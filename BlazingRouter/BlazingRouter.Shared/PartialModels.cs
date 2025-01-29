@@ -53,15 +53,6 @@ public sealed class AuthorizeAnyone : Attribute
 }
 
 /// <summary>
-/// Anyone can visit this page, regardless of authentication & authorization
-/// </summary>
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class AuthorizePublic : Attribute
-{
-    
-}
-
-/// <summary>
 /// All unauthorized visitors will be redirected to a specified page
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]

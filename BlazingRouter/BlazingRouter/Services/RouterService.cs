@@ -16,50 +16,60 @@ internal static class RouterService
     private static readonly Dictionary<string, object?> EmptyKvDict = new Dictionary<string, object?>();
     private static readonly Tuple<bool, Dictionary<string, object?>> EmptyParamMap = new Tuple<bool, Dictionary<string, object?>>(true, EmptyKvDict);
 
-    private static List<RouteParam>? GetRouteMappedPars(Type? type)
+    private static PropertyInfo[] GetTypeProperties(Type type)
     {
-        if (type is null)
-        {
-            return null;
-        }
-        
-        if (Cache.TryGetValue($"router_route_pars_{type.FullName}", out List<RouteParam>? cached))
+        if (Cache.TryGetValue($"router_type_pars_{type}", out PropertyInfo[]? cached) && cached is not null)
         {
             return cached;
         }
         
-        List<RouteAttribute> attrs = type.GetCustomAttributes<RouteAttribute>().ToList();
-        List<RouteParam> mappedPars = [];
-
-        if (attrs.Count > 0)
+        PropertyInfo[] properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        return properties;
+    }
+    
+    private static List<RouteParam>? GetRouteMappedPars(Route? route)
+    {
+        if (route is null)
         {
-            RouteAttribute first = attrs[0];
-            IEnumerable<string> attrPars = first.Template.Split('/', StringSplitOptions.RemoveEmptyEntries).Where(x => x.StartsWith('{') && x.EndsWith('}'));
-            PropertyInfo[] properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
-            
-            foreach (string attrPar in attrPars)
-            {
-                string finalPar = attrPar[1..];
-                finalPar = finalPar.Remove(finalPar.Length - 1);
-
-                PropertyInfo? matchingProperty = properties.FirstOrDefault(x => string.Equals(x.Name, finalPar, StringComparison.InvariantCultureIgnoreCase));
-
-                if (matchingProperty is null)
-                {
-                    throw new Exception("Nenalezena odpovídající vlastnost");
-                }
-                
-                mappedPars.Add(new RouteParam {Name = finalPar, Type = matchingProperty.PropertyType});
-            }
+            return null;
+        }
+        
+        if (Cache.TryGetValue($"router_route_pars_{route.Id}", out List<RouteParam>? cached))
+        {
+            return cached;
         }
 
-        Cache.Set($"router_route_pars_{type.FullName}", mappedPars, DateTime.MaxValue);
+        PropertyInfo[] props = GetTypeProperties(route.Handler);
+        List<RouteParam> mappedPars = [];
+
+        List<RouteSegment> attrPars = route.Segments.Where(x => x.Type is RouteSegmentTypes.Dynamic).ToList();
+        
+        
+        foreach (RouteSegment attrPar in attrPars)
+        {
+            PropertyInfo? matchingProperty = props.FirstOrDefault(x => string.Equals(x.Name, attrPar.LiteralValue, StringComparison.InvariantCultureIgnoreCase));
+
+            if (matchingProperty is null)
+            {
+                // matching prop not found, bail
+                continue;
+            }
+            
+            mappedPars.Add(new RouteParam {Name = attrPar.LiteralValue, Type = matchingProperty.PropertyType});
+        }
+
+        Cache.Set($"router_route_pars_{route.Id}", mappedPars, DateTime.MaxValue);
         return mappedPars;
     }
     
-    public static Tuple<bool, Dictionary<string, object?>> MapUrlParams(Type? type, Dictionary<string, string>? pars)
+    public static Tuple<bool, Dictionary<string, object?>> MapUrlParams(Route? route, Dictionary<string, string>? pars)
     {
-        List<RouteParam>? map = GetRouteMappedPars(type);
+        if (route is null)
+        {
+            return EmptyParamMap;
+        }
+        
+        List<RouteParam>? map = GetRouteMappedPars(route);
 
         if (map == null)
         {

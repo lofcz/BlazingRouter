@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using BlazingCore;
 using BlazingRouter.Services;
 using Microsoft.AspNetCore.Components;
@@ -42,7 +43,8 @@ public class Route
 
     internal Route(string fullRoute)
     {
-        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        ParseSegments();
     }
     
     /// <summary>
@@ -52,8 +54,9 @@ public class Route
     /// <param name="handler"></param>
     public Route(string fullRoute, Type handler)
     {
-        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
         Handler = handler;
+        ParseSegments();
     }
     
     /// <summary>
@@ -63,8 +66,9 @@ public class Route
     /// <param name="handler"></param>
     public Route(string[] uriSegments, Type handler)
     {
-        UriSegments = uriSegments;
+        UriSegments = uriSegments.ToList();
         Handler = handler;
+        ParseSegments();
     }
     
     /// <summary>
@@ -74,11 +78,33 @@ public class Route
     /// <param name="handler"></param>
     public Route(IEnumerable<string> uriSegments, Type handler)
     {
-        UriSegments = uriSegments.ToArray();
+        UriSegments = uriSegments.ToList();
         Handler = handler;
+        ParseSegments();
     }
 
-    public string[]? UriSegments { get; set; }
+    private static readonly Regex EverythingAfterColonRegex = new Regex(":(.*)", RegexOptions.Compiled);
+
+    private void ParseSegments()
+    {
+        if (UriSegments is null)
+        {
+            return;
+        }
+        
+        foreach (string uriSegment in UriSegments)
+        {
+            Segments.Add(new RouteSegment
+            {
+                LiteralValue = EverythingAfterColonRegex.Replace(uriSegment.Replace("{", string.Empty).Replace("}", string.Empty), string.Empty).Trim(),
+                RawSegment = uriSegment,
+                Type = uriSegment.Contains('{') ? RouteSegmentTypes.Dynamic : uriSegment.Contains('*') ? RouteSegmentTypes.Dynamic : RouteSegmentTypes.Static
+            });
+        }
+    }
+
+    public List<string>? UriSegments { get; set; }
+    public List<RouteSegment> Segments { get; set; } = [];
     public Type Handler { get; set; }
     public string TypeFullnameLower { get; set; }
     public bool EndsWithIndex { get; set; }
@@ -86,10 +112,11 @@ public class Route
     public bool RedirectUnauthorized { get; set; }
     public string? RedirectUnauthorizedUrl { get; set; }
     public List<IRole>? AuthorizedRoles { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     public MatchResult Match(string[] segments)
     {
-        if (UriSegments != null && segments.Length != UriSegments.Length)
+        if (UriSegments != null && segments.Length != UriSegments.Count)
         {
             return MatchResult.NoMatch();
         }
@@ -201,7 +228,7 @@ public class RouteManager
             {
                 IndexRoutes.Add(route);
 
-                if (route.UriSegments is { Length: > 0 } && route.UriSegments[0].ToLowerInvariant() is "home")
+                if (route.UriSegments is { Count: > 0 } && route.UriSegments[0].ToLowerInvariant() is "home")
                 {
                     IndexHomeRoute = route;
                 }

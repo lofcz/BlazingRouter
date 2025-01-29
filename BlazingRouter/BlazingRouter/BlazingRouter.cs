@@ -32,7 +32,8 @@ public enum RouteSegmentTypes
 
 public class RouteSegment
 {
-    public string Segment { get; set; }
+    public string LiteralValue { get; set; }
+    public string RawSegment { get; set; }
     public RouteSegmentTypes Type { get; set; }
 }
 
@@ -91,7 +92,7 @@ public class RadixTree
 {
     private List<Route> Routes { get; set; }
     private List<RouteContainer> Containers { get; set; } = [];
-    private RadixTreeNode RootNode { get; set; } = new RadixTreeNode("", RouteSegmentTypes.Root, null);
+    private RadixTreeNode RootNode { get; set; } = new RadixTreeNode(string.Empty, RouteSegmentTypes.Root, null);
     
     public RadixTree(List<Route> routes)
     {
@@ -102,15 +103,16 @@ public class RadixTree
         {
             RouteContainer container = new RouteContainer(route);
             RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
-            string[] routeSegments = route.UriSegments ?? [];
-            
+            List<string> routeSegments = route.UriSegments ?? [];
+         
+            // todo: fix this parsing happening twice
             foreach (string routeSegment in routeSegments)
             {
                 RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
                 RouteSegment parsedSegment = new RouteSegment();
-                
                 string segmentCopy = routeSegment.ToLowerInvariant().Trim();
-                if ((segmentCopy.StartsWith('{') && segmentCopy.EndsWith('}')) || segmentCopy.StartsWith(':'))
+                
+                if (segmentCopy.StartsWith('{') && segmentCopy.EndsWith('}'))
                 {
                     segmentCopy = "__reservedDynamic";
                     localSegment = RouteSegmentTypes.Dynamic;
@@ -126,14 +128,14 @@ public class RadixTree
                     // [todo] handle error
                 }
 
-                parsedSegment.Segment = segmentCopy;
+                parsedSegment.RawSegment = segmentCopy;
                 parsedSegment.Type = localSegment;
 
-                if (!string.IsNullOrWhiteSpace(parsedSegment.Segment))
+                if (!string.IsNullOrWhiteSpace(parsedSegment.RawSegment))
                 {
                     container.Segments.Add(parsedSegment);   
                 }
-
+                
                 maxSegment = localSegment;
             }
             
@@ -161,9 +163,9 @@ public class RadixTree
     private static RadixTreeNode InsertRouteSegment(RouteSegment segment, RadixTreeNode parent, Route handler, bool isRoutable)
     {
         parent.Childs ??= [];
-        RadixTreeNode newNode = new RadixTreeNode(segment.Segment, segment.Type, isRoutable ? handler : null);
+        RadixTreeNode newNode = new RadixTreeNode(segment.RawSegment, segment.Type, isRoutable ? handler : null);
         
-        if (parent.Childs.TryGetValue(segment.Segment, out RadixTreeNode? node) && node is not null)
+        if (parent.Childs.TryGetValue(segment.RawSegment, out RadixTreeNode? node) && node is not null)
         {
             if (isRoutable)
             {
@@ -173,7 +175,7 @@ public class RadixTree
             return node;
         }
         
-        parent.Childs.Add(segment.Segment, newNode);
+        parent.Childs.Add(segment.RawSegment, newNode);
         return newNode;
     }
 
@@ -223,16 +225,16 @@ public class RadixTree
                 if (segment.StartsWith('{') && segment.EndsWith('}'))
                 {
                     sg.Type = RouteSegmentTypes.Dynamic;
-                    sg.Segment = segment.Substring(1, segment.Length - 2);
+                    sg.RawSegment = segment.Substring(1, segment.Length - 2);
                 }
                 else if (segment is "*")
                 {
                     sg.Type = RouteSegmentTypes.Wildcard;
-                    sg.Segment = segment;
+                    sg.RawSegment = segment;
                 }
                 else
                 {
-                    sg.Segment = segment;
+                    sg.RawSegment = segment;
                 }
 
                 Segments.Add(sg);
@@ -252,7 +254,7 @@ public class RadixTree
                     {
                         if (pars.TryGetValue($"par_{paramIndex}", out string? val))
                         {
-                            resolvedDict[segment.Segment] = val;
+                            resolvedDict[segment.RawSegment] = val;
                             paramIndex++;
                         }
 

@@ -172,7 +172,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
             {
                 parameters ??= [];
 
-                Tuple<bool, Dictionary<string, object?>> casted = RouterService.MapUrlParams(matchResult.MatchedRoute?.Handler, matchResult.Params);
+                Tuple<bool, Dictionary<string, object?>> casted = RouterService.MapUrlParams(matchResult.MatchedRoute, matchResult.Params);
 
                 if (!casted.Item1) // invalid route param value, cast failed
                 {
