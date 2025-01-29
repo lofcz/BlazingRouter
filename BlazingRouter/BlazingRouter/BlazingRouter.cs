@@ -1,24 +1,287 @@
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
+using BlazingRouter.Shared;
 
 namespace BlazingRouter;
 
+
+/// <summary>
+/// A route. Routes use the following syntax:<br/>
+/// <i>1.</i> segments are divided by forward slashes "/"<br/>
+/// <i>2.</i> a route consists of zero or more segments, for example /test/ping<br/>
+/// <i>3.</i> a segment is defined as:<br/>
+/// <i>3a)</i> alphanumeric literal, for example <c>test</c><br/>
+/// <i>3b)</i> alphanumeric literal enclosed in curly brackets <c>{test}</c> (query argument), for example <c>/product/{name}</c><br/>
+/// <i>3c)</i> star symbol <c>*</c> (wildcard), captures anything. <c>/blog/{id}/*</c> makes <c>/blog/2/my-book</c> a valid route. If wildcard is used, no further segments can be used for the route.<br/>
+/// <i>4.</i> a route defined as query argument (3b) may use one or more constrains, delimited by <c>:</c> (colon)<br/>
+/// <i>4a)</i> type constrain: <c>{arg:int|bool|datetime|decimal|double|float|guid|long}</c><br/>
+/// <i>4b)</i> length constraint: <c>{arg:minlength(val)|maxlength(val)|length(val)|length(min,max))</c><br/>
+/// <i>4c)</i> numeric value constraint: <c>{arg:min(val)|max(val)|range(min,max)}</c><br/>
+/// <i>4d)</i> string content constraint: <c>{arg:alpha}</c> (one or more alphabetical characters, a-z, case-insensitive)<br/>
+/// <i>4e)</i> regex constraint: <c>{arg:regex(str)}</c> (for example <c>{arg:regex(:(.*))}</c> constrains <c>arg</c> to regex <c>:(.*)</c>)<br/>
+/// <i>4f)</i> required constraint: <c>{arg:required}</c> (enforce that the argument can't be empty)
+/// </summary>
+public class Route
+{
+    public int Priority { get; }
+    public List<string>? UriSegments { get; set; }
+    public List<RouteSegment> Segments { get; set; } = [];
+    public Type Handler { get; set; }
+    public string TypeFullnameLower { get; set; }
+    public bool EndsWithIndex { get; set; }
+    public bool OnlyUnauthorized { get; set; }
+    public bool RedirectUnauthorized { get; set; }
+    public string? RedirectUnauthorizedUrl { get; set; }
+    public List<IRole>? AuthorizedRoles { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    
+    private Route()
+    {
+    }
+    
+    /// <summary>
+    /// Creates a route from a route, e.g. /test/ping. Segments should be delimited by "/"
+    /// </summary>
+    /// <param name="pattern">See <see cref="Route"/> for syntax</param>
+    /// <param name="handler">Type (of a page) associated with this route</param>
+    /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
+    public Route(string pattern, Type handler, int priority = 0)
+    {
+        UriSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        Handler = handler;
+        Priority = priority;
+        ParseSegments();
+    }
+    
+    internal Route(string pattern)
+    {
+        UriSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        ParseSegments();
+    }
+    
+    /// <summary>
+    /// Creates a route from an array of segments.
+    /// </summary>
+    /// <param name="uriSegments"></param>
+    /// <param name="handler"></param>
+    internal Route(string[] uriSegments, Type handler)
+    {
+        UriSegments = uriSegments.ToList();
+        Handler = handler;
+        ParseSegments();
+    }
+    
+    /// <summary>
+    /// Creates a route from an enumerable strings of segments.
+    /// </summary>
+    /// <param name="uriSegments"></param>
+    /// <param name="handler"></param>
+    internal Route(IEnumerable<string> uriSegments, Type handler)
+    {
+        UriSegments = uriSegments.ToList();
+        Handler = handler;
+        ParseSegments();
+    }
+    
+    private void ParseSegments()
+    {
+        if (UriSegments is null)
+        {
+            return;
+        }
+    
+        RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
+    
+        foreach (string routeSegment in UriSegments)
+        {
+            RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
+            RouteSegment parsedSegment = new RouteSegment();
+            string segmentCopy = routeSegment.ToLowerInvariant().Trim();
+            
+            if (segmentCopy.StartsWith('{') && segmentCopy.EndsWith('}'))
+            {
+                // Parse dynamic segment with constraints
+                string innerContent = segmentCopy[1..^1]; // Remove { and }
+                string[] parts = innerContent.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            
+                // store name
+                parsedSegment.LiteralValue = parts[0].Trim();
+            
+                // decode constrains
+                if (parts.Length > 1)
+                {
+                    parsedSegment.Constraints = parts.Skip(1)
+                        .Select(p => p.Trim())
+                        .Where(p => !string.IsNullOrEmpty(p))
+                        .ToList();
+                }
+
+                segmentCopy = "__reservedDynamic";
+                localSegment = RouteSegmentTypes.Dynamic;
+            }
+            else if (segmentCopy is "*")
+            {
+                localSegment = RouteSegmentTypes.Wildcard;
+            }
+        
+            // if we already added wildcard, ignore everything
+            if (maxSegment is RouteSegmentTypes.Wildcard)
+            {
+                break;
+            }
+
+            parsedSegment.RawSegment = segmentCopy;
+            parsedSegment.Type = localSegment;
+
+            if (!string.IsNullOrWhiteSpace(parsedSegment.RawSegment))
+            {
+                Segments.Add(parsedSegment);   
+            }
+            
+            maxSegment = localSegment;
+        }
+    }
+}
+
 public class BlazingRouter
 {
-    private List<Route> Routes { get; set; }
-    private RadixTree Tree { get; set; }
+    public RadixTree Tree { get; set; }
 
     public BlazingRouter(List<Route> routes)
     {
-        Routes = routes;
         Tree = new RadixTree(routes);
     }
 
     public MatchResult Match(string[] segments)
     {
         ParametrizedRouteResult x = Tree.ResolveRoute(segments);
-        return new MatchResult(x.Success, x.NativeResult?.Node?.Handler, x.NativeResult?.Params);
+        return new MatchResult(x.Success && (x.NativeResult?.IsExactMatch ?? false), x.NativeResult?.Node?.Handler, x.NativeResult?.Params, x.NativeResult?.LastMatchedNode?.Handler);
     }
     
+}
+
+public class RouteConstraint
+{
+    public string Type { get; }
+    public string? Value { get; }
+    public string? Value2 { get; }
+
+    public RouteConstraint(string type, string? value = null, string? value2 = null)
+    {
+        Type = type.ToLowerInvariant();
+        Value = value;
+        Value2 = value2;
+    }
+}
+
+public static class RouteConstraintParser
+{
+    private static readonly Regex ConstraintRegex = new Regex(@"^(?<type>\w+)(?:\((?<params>.*?)\))?$", RegexOptions.Compiled);
+
+    public static RouteConstraint Parse(string constraintStr)
+    {
+        Match match = ConstraintRegex.Match(constraintStr);
+        if (!match.Success)
+            throw new ArgumentException($"Invalid constraint format: {constraintStr}");
+
+        string type = match.Groups["type"].Value;
+        string[] parameters = match.Groups["params"].Success
+            ? match.Groups["params"].Value.Split(',')
+                .Select(p => p.Trim())
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToArray()
+            : [];
+
+        return new RouteConstraint(
+            type,
+            parameters.Length > 0 ? parameters[0] : null,
+            parameters.Length > 1 ? parameters[1] : null
+        );
+    }
+}
+
+public static class RouteConstraintValidator
+{
+    public static readonly Dictionary<string, Func<string, RouteConstraint, bool>> Validators = new Dictionary<string, Func<string, RouteConstraint, bool>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["int"] = (value, _) => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int _),
+        ["bool"] = (value, _) => bool.TryParse(value, out bool _),
+        ["datetime"] = (value, _) => DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateTime _),
+        ["decimal"] = (value, _) => decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal _),
+        ["double"] = (value, _) => double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double _),
+        ["float"] = (value, _) => float.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out float _),
+        ["guid"] = (value, _) => Guid.TryParse(value, out Guid _),
+        ["long"] = (value, _) => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long _),
+        ["minlength"] = (value, constraint) =>
+        {
+            if (!int.TryParse(constraint.Value, out int minLength))
+                return false;
+            return value.Length >= minLength;
+        },
+        ["maxlength"] = (value, constraint) => 
+        {
+            if (!int.TryParse(constraint.Value, out int maxLength))
+                return false;
+            return value.Length <= maxLength;
+        },
+        ["length"] = (value, constraint) => 
+        {
+            if (constraint.Value2 == null)
+            {
+                if (!int.TryParse(constraint.Value, out int exactLength))
+                    return false;
+                return value.Length == exactLength;
+            }
+            
+            if (!int.TryParse(constraint.Value, out int minLength) || 
+                !int.TryParse(constraint.Value2, out int maxLength))
+                return false;
+                
+            return value.Length >= minLength && value.Length <= maxLength;
+        },
+        ["min"] = (value, constraint) => 
+        {
+            if (!int.TryParse(value, out int numValue) || 
+                !int.TryParse(constraint.Value, out int minValue))
+                return false;
+            return numValue >= minValue;
+        },
+        ["max"] = (value, constraint) => 
+        {
+            if (!int.TryParse(value, out int numValue) || 
+                !int.TryParse(constraint.Value, out int maxValue))
+                return false;
+            return numValue <= maxValue;
+        },
+        ["range"] = (value, constraint) => 
+        {
+            if (!int.TryParse(value, out int numValue) || 
+                !int.TryParse(constraint.Value, out int minValue) ||
+                !int.TryParse(constraint.Value2, out int maxValue))
+                return false;
+            return numValue >= minValue && numValue <= maxValue;
+        },
+        ["alpha"] = (value, _) => !string.IsNullOrEmpty(value) && value.All(char.IsLetter),
+        ["regex"] = (value, constraint) => 
+        {
+            if (constraint.Value is null)
+            {
+                return false;
+            }
+
+            
+            try
+            {
+                return Regex.IsMatch(value, constraint.Value);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        },
+        ["required"] = (value, _) => !string.IsNullOrEmpty(value)
+    };
 }
 
 public enum RouteSegmentTypes
@@ -35,14 +298,18 @@ public class RouteSegment
     public string LiteralValue { get; set; }
     public string RawSegment { get; set; }
     public RouteSegmentTypes Type { get; set; }
+    public List<string>? Constraints { get; set; }
 }
+
 
 public class RadixTreeNode
 {
     public Dictionary<string, RadixTreeNode?>? Childs { get; set; }
     public Route? Handler { get; set; }
     public string Text { get; set; }
+    public string? ParamName { get; set; }
     public RouteSegmentTypes Type { get; set; }
+    public List<RouteConstraint> Constraints { get; set; } = new();
 
     public RadixTreeNode(string text, RouteSegmentTypes type, Route? handler)
     {
@@ -50,12 +317,21 @@ public class RadixTreeNode
         Text = text;
         Type = type;
     }
+
+    public void AddConstraint(string constraintStr)
+    {
+        RouteConstraint constraint = RouteConstraintParser.Parse(constraintStr);
+        Constraints.Add(constraint);
+    }
 }
+
 
 public class ResolvedRouteResult
 {
     public RadixTreeNode? Node { get; set; }
     public Dictionary<string, string> Params { get; set; }
+    public bool IsExactMatch { get; set; }
+    public RadixTreeNode? LastMatchedNode { get; set; }
 
     public ResolvedRouteResult()
     {
@@ -63,10 +339,13 @@ public class ResolvedRouteResult
     }
 }
 
-public class ResolvedRouteSegment
+public class ParseContext
 {
-    public string Segment { get; set; }
-    public string ParamValue { get; set; }
+    public List<string> Segments { get; set; } = [];
+    public int CurrentIndex { get; set; }
+    public Dictionary<string, string> Params { get; set; } = new Dictionary<string, string>();
+    public RadixTreeNode? BestMatch { get; set; }
+    public int BestMatchIndex { get; set; }
 }
 
 public class ParametrizedRouteResult
@@ -90,63 +369,29 @@ public class RouteContainer
 
 public class RadixTree
 {
-    private List<Route> Routes { get; set; }
+    private List<Route> Routes { get; set; } = [];
     private List<RouteContainer> Containers { get; set; } = [];
     private RadixTreeNode RootNode { get; set; } = new RadixTreeNode(string.Empty, RouteSegmentTypes.Root, null);
     
     public RadixTree(List<Route> routes)
     {
-        Routes = routes;
-        
-        // 1. routes -> route containers
         foreach (Route route in routes)
         {
-            RouteContainer container = new RouteContainer(route);
-            RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
-            List<string> routeSegments = route.UriSegments ?? [];
-         
-            // todo: fix this parsing happening twice
-            foreach (string routeSegment in routeSegments)
-            {
-                RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
-                RouteSegment parsedSegment = new RouteSegment();
-                string segmentCopy = routeSegment.ToLowerInvariant().Trim();
-                
-                if (segmentCopy.StartsWith('{') && segmentCopy.EndsWith('}'))
-                {
-                    segmentCopy = "__reservedDynamic";
-                    localSegment = RouteSegmentTypes.Dynamic;
-                }
-                else if (segmentCopy is "*")
-                {
-                    localSegment = RouteSegmentTypes.Wildcard;
-                }
-                
-                // pokud už jsme zadali dynamický segment, není možné zadat další statický, pokud už wildkartu, není možné zadat žádný další segment
-                if ((int) localSegment < (int)maxSegment)
-                {
-                    // [todo] handle error
-                }
-
-                parsedSegment.RawSegment = segmentCopy;
-                parsedSegment.Type = localSegment;
-
-                if (!string.IsNullOrWhiteSpace(parsedSegment.RawSegment))
-                {
-                    container.Segments.Add(parsedSegment);   
-                }
-                
-                maxSegment = localSegment;
-            }
-            
-            Containers.Add(container);
+            AddRoute(route);
         }
+    }
+
+    public void AddRoute(Route route)
+    {
+        Routes.Add(route);
         
-        // 2. insert
-        foreach (RouteContainer container in Containers)
+        RouteContainer container = new RouteContainer(route)
         {
-            InsertRoute(container, RootNode);
-        }
+            Segments = route.Segments
+        };
+        
+        Containers.Add(container);
+        InsertRoute(container, RootNode);
     }
     
     private static void InsertRoute(RouteContainer route, RadixTreeNode rootNode)
@@ -159,22 +404,49 @@ public class RadixTree
             ptr = InsertRouteSegment(segment, ptr, route.Route, index == route.Segments.Count - 1);
         }
     }
-    
+
     private static RadixTreeNode InsertRouteSegment(RouteSegment segment, RadixTreeNode parent, Route handler, bool isRoutable)
     {
         parent.Childs ??= [];
         RadixTreeNode newNode = new RadixTreeNode(segment.RawSegment, segment.Type, isRoutable ? handler : null);
-        
+
+        if (segment is { Type: RouteSegmentTypes.Dynamic })
+        {
+            newNode.ParamName = segment.LiteralValue;
+            
+            if (segment.Constraints is not null)
+            {
+                foreach (string constraint in segment.Constraints)
+                {
+                    newNode.AddConstraint(constraint);
+                }   
+            }
+        }
+
         if (parent.Childs.TryGetValue(segment.RawSegment, out RadixTreeNode? node) && node is not null)
         {
             if (isRoutable)
             {
-                node.Handler = handler;
+                // check for priority, ignore if new route has lower priority
+                if (node.Handler is null || handler.Priority >= node.Handler.Priority)
+                {
+                    node.Handler = handler;
+
+                    // update descendants
+                    if (segment is { Type: RouteSegmentTypes.Dynamic, Constraints.Count: > 0 })
+                    {
+                        node.Constraints.Clear();
+                        foreach (string constraint in segment.Constraints)
+                        {
+                            node.AddConstraint(constraint);
+                        }
+                    }
+                }
             }
-            
+
             return node;
         }
-        
+
         parent.Childs.Add(segment.RawSegment, newNode);
         return newNode;
     }
@@ -195,9 +467,14 @@ public class RadixTree
         }
         
         RoutePrototype pr = new RoutePrototype(node.Node?.Text ?? string.Empty);
-        Dictionary<string, string> pars = pr.Resolve(node.Params);
 
-        return new ParametrizedRouteResult {Success = true, Route = pr.Route, NativeResult = node, Params = pars};
+        return new ParametrizedRouteResult
+        {
+            Success = true, 
+            Route = pr.Route, 
+            NativeResult = node, 
+            Params = node.Params
+        };
     }
     
     public class RoutePrototype
@@ -221,7 +498,7 @@ public class RadixTree
                 }
 
                 RouteSegment sg = new RouteSegment();
-                
+
                 if (segment.StartsWith('{') && segment.EndsWith('}'))
                 {
                     sg.Type = RouteSegmentTypes.Dynamic;
@@ -240,121 +517,126 @@ public class RadixTree
                 Segments.Add(sg);
             }
         }
-
-        public Dictionary<string, string> Resolve(Dictionary<string, string> pars)
-        {
-            int paramIndex = 0;
-            Dictionary<string, string> resolvedDict = new Dictionary<string, string>();
-            
-            foreach (RouteSegment segment in Segments)
-            {
-                switch (segment.Type)
-                {
-                    case RouteSegmentTypes.Dynamic:
-                    {
-                        if (pars.TryGetValue($"par_{paramIndex}", out string? val))
-                        {
-                            resolvedDict[segment.RawSegment] = val;
-                            paramIndex++;
-                        }
-
-                        break;
-                    }
-                    case RouteSegmentTypes.Wildcard:
-                    {
-                        if (pars.TryGetValue($"wildcard", out string? val))
-                        {
-                            resolvedDict["wildcard"] = val;
-                        }
-
-                        break;
-                    }
-                }
-            }
-
-            return resolvedDict;
-        }
     }
-   
+    
     public ResolvedRouteResult FindNode(string[] segments)
     {
-        ResolvedRouteResult result = new ResolvedRouteResult();
-        List<ResolvedRouteSegment> finalPathParts = (from pathPart in segments select new ResolvedRouteSegment {Segment = pathPart, ParamValue = null}).ToList();
-        
-        if (finalPathParts.Count == 1 && finalPathParts[0].Segment != "index")
+        ParseContext context = new ParseContext
         {
-            finalPathParts.Add(new ResolvedRouteSegment {Segment = "index"});
+            Segments = segments.ToList()
+        };
+
+        return FindNodeRecursiveDescent(RootNode, context);
+    }
+
+    private static ResolvedRouteResult FindNodeRecursiveDescent(RadixTreeNode currentNode, ParseContext context)
+    {
+        // update best match
+        if (currentNode.Handler is not null && (context.BestMatch is null || currentNode.Handler.Priority > context.BestMatch.Handler?.Priority))
+        {
+            context.BestMatch = currentNode;
+            context.BestMatchIndex = context.CurrentIndex;
         }
-        
-        RadixTreeNode? currentCandidate = RootNode;
-        RadixTreeNode? lastWildcardNode = null;
-        RouteSegmentTypes currentSegmentType = RouteSegmentTypes.Static;
-        int pars = 0;
-        int wildcardIndex = 0;
-        
-        for (int i = 0; i < finalPathParts.Count; i++)
+
+        // are we finished?
+        if (context.CurrentIndex >= context.Segments.Count)
         {
-            ResolvedRouteSegment pathPart = finalPathParts[i];
+            return new ResolvedRouteResult
+            {
+                Node = currentNode,
+                Params = new Dictionary<string, string>(context.Params),
+                IsExactMatch = true,
+                LastMatchedNode = currentNode
+            };
+        }
+
+        string currentSegment = context.Segments[context.CurrentIndex];
+        ResolvedRouteResult result = new ResolvedRouteResult
+        {
+            Node = currentNode,
+            Params = new Dictionary<string, string>(context.Params),
+            IsExactMatch = false,
+            LastMatchedNode = context.BestMatch
+        };
+
+        if (currentNode.Childs is null)
+        {
+            return result;
+        }
+
+        // 1. try static match
+        if (currentNode.Childs.TryGetValue(currentSegment, out RadixTreeNode? staticNode) && staticNode is not null)
+        {
+            context.CurrentIndex++;
+            ResolvedRouteResult staticResult = FindNodeRecursiveDescent(staticNode, context);
+            context.CurrentIndex--;
+
+            if (staticResult.IsExactMatch)
+                return staticResult;
+        }
+
+        // 2. try dynamic match
+        if (currentNode.Childs.TryGetValue("__reservedDynamic", out RadixTreeNode? paramNode) && paramNode is not null)
+        {
+            bool isValid = true;
             
-            if (currentCandidate?.Childs != null)
+            if (paramNode.Constraints.Count > 0)
             {
-                if (currentCandidate?.Childs != null && currentCandidate.Childs.TryGetValue(pathPart.Segment, out RadixTreeNode? node))
+                isValid = paramNode.Constraints.All(constraint =>
                 {
-                    currentCandidate = node;
-                }
-                else if (currentCandidate?.Childs != null && currentCandidate.Childs.TryGetValue("__reservedDynamic", out RadixTreeNode? paramNode))
-                {
-                    currentCandidate = paramNode;
-                    currentSegmentType = RouteSegmentTypes.Dynamic;
-                    pathPart.ParamValue = pathPart.Segment;
-                    result.Params[$"par_{pars}"] = pathPart.Segment;
-                    pars++;
-                }
-                else
-                {
-                    if (lastWildcardNode != null)
+                    if (RouteConstraintValidator.Validators.TryGetValue(constraint.Type, out Func<string, RouteConstraint, bool>? validator))
                     {
-                        currentCandidate = lastWildcardNode;
-                        result.Node = currentCandidate;
-                        return result;
+                        return validator(currentSegment, constraint);
                     }
-                }
-                
-                if (currentCandidate?.Childs != null && currentCandidate.Childs.TryGetValue("*", out RadixTreeNode? wildcardNode))
-                {
-                    lastWildcardNode = wildcardNode;
-                    wildcardIndex = i + 1;
-                }
+                    
+                    return false; // unk constrain
+                });
             }
-            else if (lastWildcardNode != null)
+
+            if (isValid)
             {
-                currentCandidate = lastWildcardNode;
-                result.Node = currentCandidate;
+                string paramName = paramNode.ParamName ?? string.Empty;
+                context.Params[paramName] = currentSegment;
+        
+                context.CurrentIndex++;
+                ResolvedRouteResult paramResult = FindNodeRecursiveDescent(paramNode, context);
+                context.CurrentIndex--;
 
-                StringBuilder sb = new StringBuilder();
+                if (paramResult.IsExactMatch)
+                    return paramResult;
 
-                sb.Append('/');
-                for (int j = wildcardIndex; j < finalPathParts.Count; j++)
-                {
-                    sb.Append(finalPathParts[j].Segment);
-                    sb.Append('/');
-                }
-
-                result.Params["wildcard"] = sb.ToString();
-                return result;
+                context.Params.Remove(paramName);
             }
         }
-        
-        if (currentCandidate == RootNode)
+
+        // 3. try wildcard
+        if (currentNode.Childs.TryGetValue("*", out RadixTreeNode? wildcardNode))
         {
-            if (currentCandidate.Childs?.TryGetValue("__reservedDynamic", out RadixTreeNode? nextDynamic) is not null)
+            StringBuilder remainingPath = new StringBuilder("/");
+            for (int i = context.CurrentIndex; i < context.Segments.Count; i++)
             {
-                currentCandidate = nextDynamic;
-                result.Params[$"par_{pars}"] = "";
+                remainingPath.Append(context.Segments[i]).Append('/');
             }
+
+            context.Params["wildcard"] = remainingPath.ToString();
+            
+            return new ResolvedRouteResult
+            {
+                Node = wildcardNode,
+                Params = new Dictionary<string, string>(context.Params),
+                IsExactMatch = true,
+                LastMatchedNode = wildcardNode
+            };
         }
-        
-        result.Node = currentCandidate;
+
+        // if we don't have exact match, try to return best prev. match
+        if (context.BestMatch != null && !result.IsExactMatch)
+        {
+            result.Node = context.BestMatch;
+            result.LastMatchedNode = context.BestMatch;
+            result.Params = context.Params;
+        }
+
         return result;
     }
 }

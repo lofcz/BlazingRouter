@@ -9,15 +9,24 @@ using BlazingRouter.Shared;
 
 namespace BlazingRouter;
 
-public class MatchResult(bool isMatch, Route? matchedRoute, Dictionary<string, string>? pars = null)
+public class MatchResult
 {
-    public bool IsMatch { get; set; } = isMatch;
-    public Route? MatchedRoute { get; set; } = matchedRoute;
-    public Dictionary<string, string>? Params { get; set; } = pars;
+    public bool IsMatch { get; set; }
+    public Route? MatchedRoute { get; set; }
+    public Route? BestMatchedRoute { get; set; }
+    public Dictionary<string, string>? Params { get; set; }
 
-    public static MatchResult Match(Route? matchedRoute)
+    public MatchResult(bool isMatch, Route? matchedRoute, Dictionary<string, string>? pars = null, Route? bestMatchedRoute = null)
     {
-        return new MatchResult(true, matchedRoute);
+        IsMatch = isMatch;
+        MatchedRoute = matchedRoute;
+        BestMatchedRoute = bestMatchedRoute;
+        Params = pars;
+    }
+
+    public static MatchResult Match(Route? matchedRoute, Dictionary<string, string>? parameters = null)
+    {
+        return new MatchResult(true, matchedRoute, parameters);
     }
 
     public static MatchResult NoMatch()
@@ -26,139 +35,47 @@ public class MatchResult(bool isMatch, Route? matchedRoute, Dictionary<string, s
     }
 }
 
-/// <summary>
-/// A route. Routes use the following syntax:<br/>
-/// 1. segments are divided by forward slashes "/"<br/>
-/// 2. a route consists of zero or more segments, for example /test/ping<br/>
-/// 3. a segment is defined as:<br/>
-/// 3a) alphanumeric literal "test"<br/>
-/// 3b) alphanumeric literal enclosed in curly brackets "{test}" (query argument), for example "/product/{name}"
-/// 3c) star symbol "*" (wildcard), captures anything. "/blog/{id}/*" makes "/blog/2/my-book" a valid route. If wildcard is used, no further segments can be used for the route. 
-/// </summary>
-public class Route
-{
-    public Route()
-    {
-    }
-
-    internal Route(string fullRoute)
-    {
-        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
-        ParseSegments();
-    }
-    
-    /// <summary>
-    /// Creates a route from a route, e.g. /test/ping. Segments should be delimited by "/"
-    /// </summary>
-    /// <param name="fullRoute"></param>
-    /// <param name="handler"></param>
-    public Route(string fullRoute, Type handler)
-    {
-        UriSegments = fullRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
-        Handler = handler;
-        ParseSegments();
-    }
-    
-    /// <summary>
-    /// Creates a route from an array of segments.
-    /// </summary>
-    /// <param name="uriSegments"></param>
-    /// <param name="handler"></param>
-    public Route(string[] uriSegments, Type handler)
-    {
-        UriSegments = uriSegments.ToList();
-        Handler = handler;
-        ParseSegments();
-    }
-    
-    /// <summary>
-    /// Creates a route from an enumerable strings of segments.
-    /// </summary>
-    /// <param name="uriSegments"></param>
-    /// <param name="handler"></param>
-    public Route(IEnumerable<string> uriSegments, Type handler)
-    {
-        UriSegments = uriSegments.ToList();
-        Handler = handler;
-        ParseSegments();
-    }
-
-    private static readonly Regex EverythingAfterColonRegex = new Regex(":(.*)", RegexOptions.Compiled);
-
-    private void ParseSegments()
-    {
-        if (UriSegments is null)
-        {
-            return;
-        }
-        
-        foreach (string uriSegment in UriSegments)
-        {
-            Segments.Add(new RouteSegment
-            {
-                LiteralValue = EverythingAfterColonRegex.Replace(uriSegment.Replace("{", string.Empty).Replace("}", string.Empty), string.Empty).Trim(),
-                RawSegment = uriSegment,
-                Type = uriSegment.Contains('{') ? RouteSegmentTypes.Dynamic : uriSegment.Contains('*') ? RouteSegmentTypes.Dynamic : RouteSegmentTypes.Static
-            });
-        }
-    }
-
-    public List<string>? UriSegments { get; set; }
-    public List<RouteSegment> Segments { get; set; } = [];
-    public Type Handler { get; set; }
-    public string TypeFullnameLower { get; set; }
-    public bool EndsWithIndex { get; set; }
-    public bool OnlyUnauthorized { get; set; }
-    public bool RedirectUnauthorized { get; set; }
-    public string? RedirectUnauthorizedUrl { get; set; }
-    public List<IRole>? AuthorizedRoles { get; set; }
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-
-    public MatchResult Match(string[] segments)
-    {
-        if (UriSegments != null && segments.Length != UriSegments.Count)
-        {
-            return MatchResult.NoMatch();
-        }
-
-        return UriSegments != null && UriSegments.Where((t, i) => string.Compare(segments[i], t, StringComparison.OrdinalIgnoreCase) != 0).Any() ? MatchResult.NoMatch() : MatchResult.Match(this);
-    }
-}
-
 public class RouteManager
 {
+    internal static readonly List<Route> Routes = [];
+    internal static IBaseBlazingRouterBuilder Builder;
+    
     private static List<Type> PageComponentTypes;
-    private static readonly List<Route> Routes = [];
     private static readonly List<Route> IndexRoutes = [];
     internal static Route? IndexHomeRoute;
     private static BlazingRouter Router;
     private static readonly HashSet<string> Controllers = [];
     private static readonly Dictionary<string, bool> UsedExpandedRoutes = [];
     
-    internal static IBaseBlazingRouterBuilder Builder;
-    
     public RouteManager(IMemoryCache cache)
     {
       
+    }
+
+    public static void AddRoute(Route route)
+    {
+        Router.Tree.AddRoute(route);
+    }
+    
+    public static void AddController(string name)
+    {
+        Controllers.Add(name.ToLowerInvariant());
     }
 
     public static void InitRouteManager(Assembly assembly, IBaseBlazingRouterBuilder builder)
     {
         Builder = builder;
 
-        if (builder.OnSetupAllowedUnauthorizedRoles is not null)
-        {
-            HashSet<string>? allowUnauthorizedRoutes = builder.OnSetupAllowedUnauthorizedRoles.Invoke();
+        HashSet<string>? allowUnauthorizedRoutes = builder.OnSetupAllowedUnauthorizedRoles?.Invoke();
 
-            if (allowUnauthorizedRoutes is not null)
+        if (allowUnauthorizedRoutes != null)
+        {
+            foreach (string str in allowUnauthorizedRoutes)
             {
-                foreach (string str in allowUnauthorizedRoutes)
-                {
-                    RouterExt.AllowedUnauthorizedUrls.Add(str);
-                }
+                RouterExt.AllowedUnauthorizedUrls.Add(str);
             }
         }
-        
+
         PageComponentTypes = assembly.ExportedTypes.Where(t => t.Namespace is not null && (t.IsSubclassOf(typeof(ComponentBase)) || t.IsSubclassOf(typeof(ComponentBaseInternal))) && t.Namespace.Contains(".Pages")).ToList();
         
         foreach (Type t in PageComponentTypes)
@@ -168,7 +85,7 @@ public class RouteManager
 
             if (segments?.Length > 0)
             {
-                Controllers.Add(segments[0]);
+                AddController(segments[0]);
             }
 
             Routes.Add(new Route(segments, t));
@@ -271,7 +188,12 @@ public class RouteManager
         }
     }
 
-    public static MatchResult Match(string[] segments, ClaimsPrincipal? principal)
+    public static MatchResult Match(string route, ClaimsPrincipal? principal = null)
+    {
+        return Match(route.Split("/", StringSplitOptions.RemoveEmptyEntries), principal);
+    }
+    
+    public static MatchResult Match(string[] segments, ClaimsPrincipal? principal = null)
     {
         // 1. /home/index
         // 2. /controller/index
@@ -292,8 +214,18 @@ public class RouteManager
 
         // 2. convention + custom routes
         MatchResult custom = Router.Match(segments);
+    
+        if (custom.MatchedRoute is null && segments.Length == 1)
+        {
+            // Kontrola, zda je segment1 známý controller
+            if (Controllers.Contains(segments[0].ToLowerInvariant()))
+            {
+                string[] segmentsWithIndex = [segments[0], "index"];
+                custom = Router.Match(segmentsWithIndex);
+            }
+        }
 
-        // 3. 404
+        // 4. 404
         return custom.MatchedRoute is not null ? custom : MatchResult.NoMatch();
     }
 }
