@@ -11,7 +11,7 @@
         <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
         <PackageTags>router,routing,middleware</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
-        <Version>1.0.5</Version>
+        <Version>1.0.6</Version>
         <IsPackable>true</IsPackable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>BlazingRouter.CodeFix</PackageId>
@@ -28,11 +28,20 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" />
+      <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
         <None Include="icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
+    <PropertyGroup>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <DevelopmentDependency>true</DevelopmentDependency>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="$(OutputPath)\BlazingRouter.Analyzer.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
 </Project>
