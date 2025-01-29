@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
@@ -49,7 +50,7 @@ public class Route
     /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
     public Route(string pattern, Type handler, int priority = 0)
     {
-        UriSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        UriSegments = SplitPattern(pattern.AsSpan());
         Handler = handler;
         Priority = priority;
         ParseSegments();
@@ -57,7 +58,7 @@ public class Route
     
     internal Route(string pattern)
     {
-        UriSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        UriSegments = SplitPattern(pattern.AsSpan());
         ParseSegments();
     }
     
@@ -85,64 +86,100 @@ public class Route
         ParseSegments();
     }
     
+    private static List<string> SplitPattern(ReadOnlySpan<char> pattern)
+    {
+        List<string> segments = [];
+        int start = 0;
+        bool inSegment = false;
+
+        for (int i = 0; i <= pattern.Length; i++)
+        {
+            if (i == pattern.Length || pattern[i] == '/')
+            {
+                if (inSegment)
+                {
+                    segments.Add(pattern.Slice(start, i - start).ToString());
+                    inSegment = false;
+                }
+            }
+            else if (!inSegment)
+            {
+                start = i;
+                inSegment = true;
+            }
+        }
+
+        return segments;
+    }
+    
     private void ParseSegments()
     {
-        if (UriSegments is null)
-        {
-            return;
-        }
-    
-        RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
-    
-        foreach (string routeSegment in UriSegments)
-        {
-            RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
-            RouteSegment parsedSegment = new RouteSegment();
-            string segmentCopy = routeSegment.ToLowerInvariant().Trim();
-            
-            if (segmentCopy.StartsWith('{') && segmentCopy.EndsWith('}'))
-            {
-                // Parse dynamic segment with constraints
-                string innerContent = segmentCopy[1..^1]; // Remove { and }
-                string[] parts = innerContent.Split(':', StringSplitOptions.RemoveEmptyEntries);
-            
-                // store name
-                parsedSegment.LiteralValue = parts[0].Trim();
-            
-                // decode constrains
-                if (parts.Length > 1)
-                {
-                    parsedSegment.Constraints = parts.Skip(1)
-                        .Select(p => p.Trim())
-                        .Where(p => !string.IsNullOrEmpty(p))
-                        .ToList();
-                }
-
-                segmentCopy = "__reservedDynamic";
-                localSegment = RouteSegmentTypes.Dynamic;
-            }
-            else if (segmentCopy is "*")
-            {
-                localSegment = RouteSegmentTypes.Wildcard;
-            }
-        
-            // if we already added wildcard, ignore everything
-            if (maxSegment is RouteSegmentTypes.Wildcard)
-            {
-                break;
-            }
-
-            parsedSegment.RawSegment = segmentCopy;
-            parsedSegment.Type = localSegment;
-
-            if (!string.IsNullOrWhiteSpace(parsedSegment.RawSegment))
-            {
-                Segments.Add(parsedSegment);   
-            }
-            
-            maxSegment = localSegment;
-        }
+    if (UriSegments is null)
+    {
+        return;
     }
+
+    RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
+
+    foreach (string routeSegment in UriSegments)
+    {
+        RouteSegment parsedSegment = new RouteSegment();
+        ReadOnlySpan<char> segmentSpan = routeSegment.AsSpan().Trim();
+        RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
+
+        if (segmentSpan.Length >= 2 && segmentSpan[0] == '{' && segmentSpan[^1] == '}')
+        {
+            // parse dynamic segment with constraints
+            ReadOnlySpan<char> innerSpan = segmentSpan.Slice(1, segmentSpan.Length - 2);
+            var parts = new List<string>();
+            int partStart = 0;
+
+            for (int i = 0; i <= innerSpan.Length; i++)
+            {
+                if (i == innerSpan.Length || innerSpan[i] == ':')
+                {
+                    if (partStart < i)
+                    {
+                        ReadOnlySpan<char> part = innerSpan.Slice(partStart, i - partStart).Trim();
+                        if (!part.IsEmpty)
+                        {
+                            parts.Add(part.ToString().ToLowerInvariant());
+                        }
+                    }
+                    partStart = i + 1;
+                }
+            }
+
+            if (parts.Count == 0)
+                continue;
+
+            parsedSegment.LiteralValue = parts[0];
+            if (parts.Count > 1)
+            {
+                parsedSegment.Constraints = parts.Skip(1).ToList();
+            }
+
+            parsedSegment.RawSegment = "__reservedDynamic";
+            localSegment = RouteSegmentTypes.Dynamic;
+        }
+        else if (segmentSpan.Length == 1 && segmentSpan[0] == '*')
+        {
+            localSegment = RouteSegmentTypes.Wildcard;
+            parsedSegment.RawSegment = "*";
+        }
+        else
+        {
+            parsedSegment.RawSegment = segmentSpan.ToString().ToLowerInvariant();
+        }
+
+        if (maxSegment == RouteSegmentTypes.Wildcard)
+            break;
+
+        parsedSegment.Type = localSegment;
+        Segments.Add(parsedSegment);
+        maxSegment = localSegment;
+    }
+}
 }
 
 public class BlazingRouter
@@ -186,34 +223,39 @@ public static partial class RouteConstraintParser
         return ConstraintCache.GetOrAdd(constraintStr, key =>
         {
             Match match = ConstraintRegex.Match(key);
+
             if (!match.Success)
-                throw new ArgumentException($"Invalid constraint format: {key}");
-
-            string type = match.Groups["type"].Value;
-            
-            // regex is parsed specially
-            if (type.Equals("regex", StringComparison.OrdinalIgnoreCase))
             {
-                string regexPattern = match.Groups["params"].Success 
-                    ? match.Groups["params"].Value 
-                    : string.Empty;
-                
-                return new RouteConstraint(type, regexPattern);
+                throw new ArgumentException($"Invalid constraint format: {key}");
             }
-            
-            // other constraints
-            string[] parameters = match.Groups["params"].Success
-                ? match.Groups["params"].Value.Split(',')
-                    .Select(p => p.Trim())
-                    .Where(p => !string.IsNullOrEmpty(p))
-                    .ToArray()
-                : [];
 
-            return new RouteConstraint(
-                type,
-                parameters.Length > 0 ? parameters[0] : null,
-                parameters.Length > 1 ? parameters[1] : null
-            );
+            string type = match.Groups["type"].Value.ToLowerInvariant();
+            ReadOnlySpan<char> paramsSpan = match.Groups["params"].ValueSpan;
+            List<string> parameters = [];
+            int start = 0;
+
+            for (int i = 0; i <= paramsSpan.Length; i++)
+            {
+                if (i == paramsSpan.Length || paramsSpan[i] == ',')
+                {
+                    if (start < i)
+                    {
+                        ReadOnlySpan<char> param = paramsSpan.Slice(start, i - start).Trim();
+                        if (!param.IsEmpty)
+                            parameters.Add(param.ToString());
+                    }
+                    start = i + 1;
+                }
+            }
+
+            return type switch
+            {
+                "regex" => new RouteConstraint(type, paramsSpan.IsEmpty ? null : paramsSpan.ToString()),
+                _ => new RouteConstraint(
+                    type,
+                    parameters.Count > 0 ? parameters[0] : null,
+                    parameters.Count > 1 ? parameters[1] : null)
+            };
         });
     }
 
@@ -627,14 +669,36 @@ public class RadixTree
         // 3. try wildcard
         if (currentNode.Childs.TryGetValue("*", out RadixTreeNode? wildcardNode))
         {
-            StringBuilder remainingPath = new StringBuilder("/");
-            for (int i = context.CurrentIndex; i < context.Segments.Count; i++)
+            int segmentCount = context.Segments.Count - context.CurrentIndex;
+            if (segmentCount > 0)
             {
-                remainingPath.Append(context.Segments[i]).Append('/');
+                int totalLength = 1; // Initial '/'
+                
+                for (int i = context.CurrentIndex; i < context.Segments.Count; i++)
+                {
+                    totalLength += context.Segments[i].Length + 1; // Segment + '/'
+                }
+
+                char[] buffer = ArrayPool<char>.Shared.Rent(totalLength);
+                int position = 0;
+                buffer[position++] = '/';
+
+                for (int i = context.CurrentIndex; i < context.Segments.Count; i++)
+                {
+                    ReadOnlySpan<char> segment = context.Segments[i].AsSpan();
+                    segment.CopyTo(buffer.AsSpan(position, segment.Length));
+                    position += segment.Length;
+                    buffer[position++] = '/';
+                }
+
+                context.Params["wildcard"] = new string(buffer, 0, position);
+                ArrayPool<char>.Shared.Return(buffer);
+            }
+            else
+            {
+                context.Params["wildcard"] = "/";
             }
 
-            context.Params["wildcard"] = remainingPath.ToString();
-            
             return new ResolvedRouteResult
             {
                 Node = wildcardNode,
