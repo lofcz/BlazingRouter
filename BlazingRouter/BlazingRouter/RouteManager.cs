@@ -25,6 +25,15 @@ public class MatchResult(bool isMatch, Route? matchedRoute, Dictionary<string, s
     }
 }
 
+/// <summary>
+/// A route. Routes use the following syntax:<br/>
+/// 1. segments are divided by forward slashes "/"<br/>
+/// 2. a route consists of zero or more segments, for example /test/ping<br/>
+/// 3. a segment is defined as:<br/>
+/// 3a) alphanumeric literal "test"<br/>
+/// 3b) alphanumeric literal enclosed in curly brackets "{test}" (query argument), for example "/product/{name}"
+/// 3c) star symbol "*" (wildcard), captures anything. "/blog/{id}/*" makes "/blog/2/my-book" a valid route. If wildcard is used, no further segments can be used for the route. 
+/// </summary>
 public class Route
 {
     public Route()
@@ -109,7 +118,21 @@ public class RouteManager
     public static void InitRouteManager(Assembly assembly, IBaseBlazingRouterBuilder builder)
     {
         Builder = builder;
-        PageComponentTypes = assembly.ExportedTypes.Where(t => t.Namespace != null && (t.IsSubclassOf(typeof(ComponentBase)) || t.IsSubclassOf(typeof(ComponentBaseInternal))) && t.Namespace.Contains(".Pages")).ToList();
+
+        if (builder.OnSetupAllowedUnauthorizedRoles is not null)
+        {
+            HashSet<string>? allowUnauthorizedRoutes = builder.OnSetupAllowedUnauthorizedRoles.Invoke();
+
+            if (allowUnauthorizedRoutes is not null)
+            {
+                foreach (string str in allowUnauthorizedRoutes)
+                {
+                    RouterExt.AllowedUnauthorizedUrls.Add(str);
+                }
+            }
+        }
+        
+        PageComponentTypes = assembly.ExportedTypes.Where(t => t.Namespace is not null && (t.IsSubclassOf(typeof(ComponentBase)) || t.IsSubclassOf(typeof(ComponentBaseInternal))) && t.Namespace.Contains(".Pages")).ToList();
         
         foreach (Type t in PageComponentTypes)
         {
@@ -128,7 +151,7 @@ public class RouteManager
             {
                 foreach (RouteAttribute route in routes)
                 {
-                    string[] routeSegments = route.Template.Split('/', StringSplitOptions.RemoveEmptyEntries).ToArray();
+                    string[] routeSegments = route.Template.Split('/', StringSplitOptions.RemoveEmptyEntries);
                     UsedExpandedRoutes.TryAdd(routeSegments.ToCsv("/") ?? string.Empty, true);
                     Routes.Add(new Route(routeSegments, t));
                 }
@@ -136,40 +159,6 @@ public class RouteManager
             
             List<Route> addedRoutes = builder.OnPageScanned?.Invoke(t) ?? [];
             Routes.AddRange(addedRoutes);
-
-            /*List<LocalizedRouteAttribute> localizedAttributes = t.GetCustomAttributes<LocalizedRouteAttribute>().ToList();
-
-            if (localizedAttributes.Count > 0)
-            {
-                foreach (LocalizedRouteAttribute routeAttr in localizedAttributes)
-                {
-                    if (routeAttr.Key.IsNullOrWhiteSpace())
-                    {
-                        continue;
-                    }
-
-                    foreach (Reo.KnownLangs lang in Enum.GetValues<Reo.KnownLangs>())
-                    {
-                        if (lang is Reo.KnownLangs.Unknown)
-                        {
-                            continue;
-                        }
-
-                        string localizedRoute = Reo.GetString(routeAttr.Key, lang);
-
-                        if (!localizedRoute.IsNullOrWhiteSpace())
-                        {
-                            string[] routeSegments = localizedRoute.Split('/', StringSplitOptions.RemoveEmptyEntries).ToArray();
-                            string joined = routeSegments.ToCsv("/") ?? string.Empty;
-
-                            if (!UsedExpandedRoutes.ContainsKey(joined))
-                            {
-                                Routes.Add(new Route(routeSegments, t));
-                            }
-                        }
-                    }
-                }
-            }*/
         }
 
         foreach (Route route in Routes)
@@ -224,9 +213,9 @@ public class RouteManager
 
                 foreach (Attribute attr in pageDirectives)
                 {
-                    if (attr is RouteAttribute rattr)
+                    if (attr is RouteAttribute rAttr)
                     {
-                        string r = rattr.Template;
+                        string r = rAttr.Template;
 
                         if (r.StartsWith('/'))
                         {
@@ -259,7 +248,7 @@ public class RouteManager
     {
         // 1. /home/index
         // 2. /controller/index
-        if (segments.Length == 0)
+        if (segments.Length is 0)
         {
             switch (IndexRoutes.Count)
             {

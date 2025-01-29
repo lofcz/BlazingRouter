@@ -115,7 +115,7 @@ public class RadixTree
                     segmentCopy = "__reservedDynamic";
                     localSegment = RouteSegmentTypes.Dynamic;
                 }
-                else if (segmentCopy == "*")
+                else if (segmentCopy is "*")
                 {
                     localSegment = RouteSegmentTypes.Wildcard;
                 }
@@ -192,7 +192,7 @@ public class RadixTree
             return new ParametrizedRouteResult {Success = false};
         }
         
-        RoutePrototype pr = new RoutePrototype(node.Node?.Text ?? "");
+        RoutePrototype pr = new RoutePrototype(node.Node?.Text ?? string.Empty);
         Dictionary<string, string> pars = pr.Resolve(node.Params);
 
         return new ParametrizedRouteResult {Success = true, Route = pr.Route, NativeResult = node, Params = pars};
@@ -246,19 +246,26 @@ public class RadixTree
             
             foreach (RouteSegment segment in Segments)
             {
-                if (segment.Type == RouteSegmentTypes.Dynamic)
+                switch (segment.Type)
                 {
-                    if (pars.TryGetValue($"par_{paramIndex}", out string? val))
+                    case RouteSegmentTypes.Dynamic:
                     {
-                        resolvedDict[segment.Segment] = val;
-                        paramIndex++;
+                        if (pars.TryGetValue($"par_{paramIndex}", out string? val))
+                        {
+                            resolvedDict[segment.Segment] = val;
+                            paramIndex++;
+                        }
+
+                        break;
                     }
-                }
-                else if (segment.Type == RouteSegmentTypes.Wildcard)
-                {
-                    if (pars.TryGetValue($"wildcard", out string? val))
+                    case RouteSegmentTypes.Wildcard:
                     {
-                        resolvedDict["wildcard"] = val;
+                        if (pars.TryGetValue($"wildcard", out string? val))
+                        {
+                            resolvedDict["wildcard"] = val;
+                        }
+
+                        break;
                     }
                 }
             }

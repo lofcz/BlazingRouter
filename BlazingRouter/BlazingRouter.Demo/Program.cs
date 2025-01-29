@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components;
 using BlazingRouter.Demo.Components;
@@ -19,16 +20,28 @@ public class Program
         builder.Services.AddBlazingRouter()
             .Configure(x =>
             {
-                x.HasRole = (principal, roles) =>
+                x.HasRole = (principal, role) =>
                 {
-                    if (roles is MyRoles.Admin)
+                    Claim? firstClaim = principal.Claims.FirstOrDefault();
+
+                    if (firstClaim is null)
                     {
-                        
+                        return false;
                     }
-                    
-                    return true;
+
+                    return firstClaim.Value == ((int)role).ToString();
                 };
 
+                x.OnSetupAllowedUnauthorizedRoles = () =>
+                {
+                    return [];
+                };
+
+                x.OnRedirectUnauthorized = (user, route) =>
+                {
+                    return "/home/unauthorized";
+                };
+                
                 x.OnPageScanned = (type) =>
                 {
                     // add custom routes here

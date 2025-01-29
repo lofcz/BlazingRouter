@@ -38,17 +38,9 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
     
     internal RouteManager Manager { get; set; }
     
-    public static readonly HashSet<string> AllowedUnauthorizedUrls = [
-        string.Empty, "/", "home", "home/index", "account/login", "account/register", "account/school",
-        "account/externallogincallback", "/home/changelog", "account/forgotpassword",
-        "account/logininternalgooglecallback", "signin-google", "account/registerparent",
-        "account/externallogincallback", "account/externalloginregister", "account/resetpassword",
-        "account/verifyemail", "sck", "llm/chat", "llm/unauthorized", "privacy-policy", "account/register-flow", "preparations",
-        "webinar", "home/preparations", "home/webinar", "home/privacy-policy", "cookies", "home/cookies", "priprava/{id}", "o-aplikaci", "o-aplikaci-sciobot",
-        "about", "vop", "ukazky", "ukazka", "ukazky-priprav", "demo/i18n", "tos", "terms-of-service", "podminky", "podminky-sluzby", "podminky-uzivani"
-    ];
+    public static readonly HashSet<string> AllowedUnauthorizedUrls = [];
 
-    private static BlazingRouter AllowedUnauthorizedRouter = null!;
+    internal static BlazingRouter AllowedUnauthorizedRouter = null!;
     private static readonly Dictionary<string, object?> emptyQueryParamsDict = [];
     
     internal static void SetupUnauthorizedRouterExt()
@@ -66,14 +58,14 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
         NavigationManager.LocationChanged += HandleLocationChanged;
     }
     
-    private string UnauthorizedRedirectUrl(string? relativeUrl)
+    private static string UnauthorizedRedirectUrl(ClaimsPrincipal? user, string? relativeUrl)
     {
-        return relativeUrl.IsNullOrWhiteSpace() ? $"/account/login" : $"/account/login?r={relativeUrl.EncodeUri()}";
+        return RouteManager.Builder.OnRedirectUnauthorized?.Invoke(user, relativeUrl ?? string.Empty) ?? "/";
     }
 
     public async Task GetAuthState()
     {
-        if (authenticationStateTask != null)
+        if (authenticationStateTask is not null)
         {
             User = (await authenticationStateTask).User;
         }
@@ -151,7 +143,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
 
             if ((matchResult.MatchedRoute?.RedirectUnauthorized ?? false) && !(authState?.User.Identity?.IsAuthenticated ?? false))
             {
-                NavigationManager.NavigateTo(matchResult.MatchedRoute?.RedirectUnauthorizedUrl ?? UnauthorizedRedirectUrl(originalPath), true);
+                NavigationManager.NavigateTo(matchResult.MatchedRoute?.RedirectUnauthorizedUrl ?? UnauthorizedRedirectUrl(authState?.User, originalPath), true);
                 return;
             }
             
@@ -161,7 +153,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
 
                 if (unauthorizedMatch.MatchedRoute is null)
                 {
-                    NavigationManager.NavigateTo(UnauthorizedRedirectUrl(originalPath), true);
+                    NavigationManager.NavigateTo(UnauthorizedRedirectUrl(authState?.User, originalPath), true);
                     return;
                 }
             }
@@ -170,7 +162,8 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
             {
                 if (!authState?.User.IsInRoleAny(matchResult.MatchedRoute.AuthorizedRoles) ?? true)
                 {
-                    NavigationManager.NavigateTo("/", true);
+                    string url = UnauthorizedRedirectUrl(authState?.User, originalPath);
+                    NavigationManager.NavigateTo(url, true);
                     return;
                 }   
             }
