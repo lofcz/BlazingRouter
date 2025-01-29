@@ -41,7 +41,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
     public static readonly HashSet<string> AllowedUnauthorizedUrls = [];
 
     internal static BlazingRouter AllowedUnauthorizedRouter = null!;
-    private static readonly Dictionary<string, object?> emptyQueryParamsDict = [];
+    private static readonly Dictionary<string, object?> EmptyQueryParamsDict = [];
     
     internal static void SetupUnauthorizedRouterExt()
     {
@@ -196,7 +196,7 @@ public class RouterExt : IComponent, IHandleAfterRender, IDisposable
 
             if (matchResult.MatchedRoute?.Handler is not null)
             {
-                RouteData routeData = new RouteData(matchResult.MatchedRoute.Handler, parameters ?? emptyQueryParamsDict);
+                RouteData routeData = new RouteData(matchResult.MatchedRoute.Handler, parameters ?? EmptyQueryParamsDict);
                 _renderHandle.Render(Found(routeData));   
             }
             else

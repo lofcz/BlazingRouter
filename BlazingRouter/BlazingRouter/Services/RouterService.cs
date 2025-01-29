@@ -71,33 +71,36 @@ internal static class RouterService
         
         List<RouteParam>? map = GetRouteMappedPars(route);
 
-        if (map == null)
+        if (map is null)
         {
             return EmptyParamMap;
         }
 
         Dictionary<string, object?> mapped = [];
 
-        for (int i = 0; i < map.Count; i++)
+        if (pars is not null)
         {
-            if (pars?.TryGetValue($"par_{i}", out string? val) ?? false)
+            foreach (RouteParam pair in map)
             {
-                if (typeof(string) == map[i].Type)
+                if (pars.TryGetValue(pair.Name, out string? val))
                 {
-                    mapped.Add(map[i].Name, val);   
-                }
-                else
-                {
-                    try
+                    if (typeof(string) == pair.Type)
                     {
-                        mapped.Add(map[i].Name, val.ChangeType(map[i].Type));
+                        mapped.Add(pair.Name, val);   
                     }
-                    catch (Exception e)
+                    else
                     {
-                        return new Tuple<bool, Dictionary<string, object?>>(false, mapped);
+                        try
+                        {
+                            mapped.Add(pair.Name, val.ChangeType(pair.Type));
+                        }
+                        catch (Exception e)
+                        {
+                            return new Tuple<bool, Dictionary<string, object?>>(false, mapped);
+                        }
                     }
                 }
-            }
+            }   
         }
 
         return new Tuple<bool, Dictionary<string, object?>>(true, mapped);

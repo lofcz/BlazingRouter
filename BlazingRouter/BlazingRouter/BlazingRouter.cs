@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
 using BlazingRouter.Shared;
 
@@ -53,6 +52,22 @@ public class Route
         UriSegments = SplitPattern(pattern.AsSpan());
         Handler = handler;
         Priority = priority;
+        ParseSegments();
+    }
+    
+    /// <summary>
+    /// Creates a route from a route, e.g. /test/ping. Segments should be delimited by "/"
+    /// </summary>
+    /// <param name="pattern">See <see cref="Route"/> for syntax</param>
+    /// <param name="handler">Type (of a page) associated with this route</param>
+    /// <param name="authorizedRoles">User must be at least in one of the roles listed to access the route</param>
+    /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
+    public Route(string pattern, Type handler, List<IRole> authorizedRoles, int priority = 0)
+    {
+        UriSegments = SplitPattern(pattern.AsSpan());
+        Handler = handler;
+        Priority = priority;
+        AuthorizedRoles = authorizedRoles;
         ParseSegments();
     }
     

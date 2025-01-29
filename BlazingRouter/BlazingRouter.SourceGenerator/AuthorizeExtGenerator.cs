@@ -496,30 +496,53 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
         ExecuteExtension(roleEnum, context);
     }
 
-    private static void ExecuteExtension(SourcegenEnumMetadata sourcegenEnumSymbol, SourceProductionContext context)
+    private static void ExecuteExtension(SourcegenEnumMetadata roleEnum, SourceProductionContext context)
     {
         string source = $$"""
                           using System;
                           using System.Reflection;
                           using Microsoft.Extensions.DependencyInjection;
+                          using BlazingRouter.Shared;
 
                           #nullable enable
 
-                          namespace {{sourcegenEnumSymbol.Namespace}}
+                          namespace {{roleEnum.Namespace}}
                           {
-                              public static class {{sourcegenEnumSymbol.Name}}BlazingRouterExtensions
+                              public static class {{roleEnum.Name}}BlazingRouterExtensions
                               {
-                                  public static IBlazingRouterBuilder<{{sourcegenEnumSymbol.Name}}> AddBlazingRouter(this IServiceCollection services, Assembly? assembly = null)
+                                  public static IBlazingRouterBuilder<{{roleEnum.Name}}> AddBlazingRouter(this IServiceCollection services, Assembly? assembly = null)
                                   {
                                       services.AddSingleton<RouteManager>();
-                                      BlazingRouterBuilder<{{sourcegenEnumSymbol.Name}}> builder = new BlazingRouterBuilder<{{sourcegenEnumSymbol.Name}}>();
+                                      BlazingRouterBuilder<{{roleEnum.Name}}> builder = new BlazingRouterBuilder<{{roleEnum.Name}}>();
                                       return builder;
+                                  }
+                              }
+                              
+                              public static class BlazingRouterGenerated
+                              {
+                                  /// <summary>
+                                  /// Creates a route from a route, e.g. /test/ping. Segments should be delimited by "/"
+                                  /// </summary>
+                                  /// <param name="pattern">See <see cref="Route"/> for syntax</param>
+                                  /// <param name="handler">Type (of a page) associated with this route</param>
+                                  /// <param name="authorizedRoles">User must be at least in one of the roles listed to access the route</param>
+                                  /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
+                                  public static Route CreateRoute(string pattern, Type handler, List<{{roleEnum.Name}}> authorizedRoles, int priority = 0)
+                                  {
+                                       List<IRole> roles = [];
+                                       
+                                       foreach ({{roleEnum.Name}} role in authorizedRoles)
+                                       {
+                                            roles.Add(new {{roleEnum.Name}}AuthRole(role));
+                                       }
+                                  
+                                       return new Route(pattern, handler, roles, priority);
                                   }
                               }
                           }
                           """;
 
-        context.AddSource($"{sourcegenEnumSymbol.Name}BlazingRouterExtensions.g.cs", source);
+        context.AddSource($"{roleEnum.Name}BlazingRouterExtensions.g.cs", source);
     }
 
     private static void ExecutePrefab(SourcegenEnumMetadata roleEnumMetadata, SourcegenEnumMetadata prefabEnumMetadata, SourceProductionContext context)
