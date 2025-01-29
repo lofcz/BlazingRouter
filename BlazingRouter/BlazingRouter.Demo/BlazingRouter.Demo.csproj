@@ -15,9 +15,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </ProjectReference>
-        <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false">
+        <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </ProjectReference>

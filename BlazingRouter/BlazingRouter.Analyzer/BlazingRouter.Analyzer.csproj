@@ -5,6 +5,13 @@
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <Version>1.0.5</Version>
+        <PackageProjectUrl>https://github.com/lofcz/BlazingRouter</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageIcon>icon.png</PackageIcon>
+        <IsPackable>true</IsPackable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,8 +19,11 @@
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
-      <PackageReference Include="System.Composition.AttributedModel" Version="8.0.0" />
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="[4.10.0,)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
 </Project>

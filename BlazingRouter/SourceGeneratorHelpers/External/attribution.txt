@@ -1,2 +1,0 @@
-Code in this folder is from:
-https://github.com/CommunityToolkit/dotnet/tree/657c6971a8d42655c648336b781639ed96c2c49f/src/CommunityToolkit.Mvvm.SourceGenerators/Helpers

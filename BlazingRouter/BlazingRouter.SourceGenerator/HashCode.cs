@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
-namespace SourceGeneratorHelpers.External;
+namespace BlazingRouter.SourceGenerator;
 
 internal struct HashCode
 {

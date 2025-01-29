@@ -14,6 +14,7 @@
         <RepositoryType>git</RepositoryType>
         <PackageTags>router,middleware,routing</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
+        <Version>1.0.4</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,10 +29,11 @@
     <ItemGroup>
       <ProjectReference Include="..\BlazingRouter.Shared\BlazingRouter.Shared.csproj" />
       <ProjectReference Include="..\BlazingRouter.SourceGenerator\BlazingRouter.SourceGenerator.csproj" />
+      <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" PrivateAssets="all" />
+      <ProjectReference Include="..\BlazingRouter.CodeFix\BlazingRouter.CodeFix.csproj" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
         <None Include="icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
-    
 </Project>
