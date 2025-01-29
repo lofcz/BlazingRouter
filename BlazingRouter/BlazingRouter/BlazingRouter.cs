@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -8,8 +9,8 @@ namespace BlazingRouter;
 
 /// <summary>
 /// A route. Routes use the following syntax:<br/>
-/// <i>1.</i> segments are divided by forward slashes "/"<br/>
-/// <i>2.</i> a route consists of zero or more segments, for example /test/ping<br/>
+/// <i>1.</i> segments are divided by forward slashes <c>/</c><br/>
+/// <i>2.</i> a route consists of zero or more segments, for example <c>/test/ping</c><br/>
 /// <i>3.</i> a segment is defined as:<br/>
 /// <i>3a)</i> alphanumeric literal, for example <c>test</c><br/>
 /// <i>3b)</i> alphanumeric literal enclosed in curly brackets <c>{test}</c> (query argument), for example <c>/product/{name}</c><br/>
@@ -175,30 +176,49 @@ public class RouteConstraint
     }
 }
 
-public static class RouteConstraintParser
+public static partial class RouteConstraintParser
 {
-    private static readonly Regex ConstraintRegex = new Regex(@"^(?<type>\w+)(?:\((?<params>.*?)\))?$", RegexOptions.Compiled);
-
+    private static readonly Regex ConstraintRegex = GeneratedConstraintRegex();
+    private static readonly ConcurrentDictionary<string, RouteConstraint> ConstraintCache = [];
+    
     public static RouteConstraint Parse(string constraintStr)
     {
-        Match match = ConstraintRegex.Match(constraintStr);
-        if (!match.Success)
-            throw new ArgumentException($"Invalid constraint format: {constraintStr}");
+        return ConstraintCache.GetOrAdd(constraintStr, key =>
+        {
+            Match match = ConstraintRegex.Match(key);
+            if (!match.Success)
+                throw new ArgumentException($"Invalid constraint format: {key}");
 
-        string type = match.Groups["type"].Value;
-        string[] parameters = match.Groups["params"].Success
-            ? match.Groups["params"].Value.Split(',')
-                .Select(p => p.Trim())
-                .Where(p => !string.IsNullOrEmpty(p))
-                .ToArray()
-            : [];
+            string type = match.Groups["type"].Value;
+            
+            // regex is parsed specially
+            if (type.Equals("regex", StringComparison.OrdinalIgnoreCase))
+            {
+                string regexPattern = match.Groups["params"].Success 
+                    ? match.Groups["params"].Value 
+                    : string.Empty;
+                
+                return new RouteConstraint(type, regexPattern);
+            }
+            
+            // other constraints
+            string[] parameters = match.Groups["params"].Success
+                ? match.Groups["params"].Value.Split(',')
+                    .Select(p => p.Trim())
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .ToArray()
+                : [];
 
-        return new RouteConstraint(
-            type,
-            parameters.Length > 0 ? parameters[0] : null,
-            parameters.Length > 1 ? parameters[1] : null
-        );
+            return new RouteConstraint(
+                type,
+                parameters.Length > 0 ? parameters[0] : null,
+                parameters.Length > 1 ? parameters[1] : null
+            );
+        });
     }
+
+    [GeneratedRegex(@"^(?<type>\w+)(?:\((?<params>.*)\))?$", RegexOptions.Compiled)]
+    private static partial Regex GeneratedConstraintRegex();
 }
 
 public static class RouteConstraintValidator
@@ -329,21 +349,16 @@ public class RadixTreeNode
 public class ResolvedRouteResult
 {
     public RadixTreeNode? Node { get; set; }
-    public Dictionary<string, string> Params { get; set; }
+    public Dictionary<string, string> Params { get; set; } = [];
     public bool IsExactMatch { get; set; }
     public RadixTreeNode? LastMatchedNode { get; set; }
-
-    public ResolvedRouteResult()
-    {
-        Params = new Dictionary<string, string>();
-    }
 }
 
 public class ParseContext
 {
     public List<string> Segments { get; set; } = [];
     public int CurrentIndex { get; set; }
-    public Dictionary<string, string> Params { get; set; } = new Dictionary<string, string>();
+    public Dictionary<string, string> Params { get; set; } = [];
     public RadixTreeNode? BestMatch { get; set; }
     public int BestMatchIndex { get; set; }
 }
@@ -630,7 +645,7 @@ public class RadixTree
         }
 
         // if we don't have exact match, try to return best prev. match
-        if (context.BestMatch != null && !result.IsExactMatch)
+        if (context.BestMatch is not null && !result.IsExactMatch)
         {
             result.Node = context.BestMatch;
             result.LastMatchedNode = context.BestMatch;

@@ -118,7 +118,7 @@ public class Tests
     }
     
     [Test]
-    public void TestNonexistingRoute()
+    public void TestNonExistingRoute()
     {
         AssertRouteResolvesToNone("/test/4/test");
     }
@@ -315,5 +315,115 @@ public class Tests
         RouteManager.AddRoute(new Route("/data/{id:int}", typeof(FilesPage), 5));
 
         AssertRouteResolvesTo<UsersPage>("/data/123");
+    }
+    
+    [Test]
+    public void TestDateTimeParameter()
+    {
+        RouteManager.AddRoute(new Route("/events/{date:datetime}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/events/2023-12-25");
+        AssertRouteResolvesToNone("/events/invalid-date");
+    }
+
+    [Test]
+    public void TestGuidParameter()
+    {
+        RouteManager.AddRoute(new Route("/items/{id:guid}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/items/550e8400-e29b-41d4-a716-446655440000");
+        AssertRouteResolvesToNone("/items/not-a-guid");
+    }
+
+    [Test]
+    public void TestLengthConstraints()
+    {
+        RouteManager.AddRoute(new Route("/code/{value:length(5)}", typeof(Page1)));
+        RouteManager.AddRoute(new Route("/name/{value:minlength(3)}", typeof(Page1)));
+        RouteManager.AddRoute(new Route("/desc/{value:maxlength(10)}", typeof(Page1)));
+        RouteManager.AddRoute(new Route("/key/{value:length(2,4)}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/code/12345");
+        AssertRouteResolvesToNone("/code/1234"); // not exactly 5
+    
+        AssertRouteResolvesTo<Page1>("/name/john");
+        AssertRouteResolvesToNone("/name/jo"); // less than 3
+    
+        AssertRouteResolvesTo<Page1>("/desc/short");
+        AssertRouteResolvesToNone("/desc/verylongtext"); // more than 10
+    
+        AssertRouteResolvesTo<Page1>("/key/abc");
+        AssertRouteResolvesToNone("/key/a"); // too short
+        AssertRouteResolvesToNone("/key/abcde"); // too long
+    }
+
+    [Test]
+    public void TestNumericConstraints()
+    {
+        RouteManager.AddRoute(new Route("/temperature/{value:int:range(-50,50)}", typeof(Page1)));
+        RouteManager.AddRoute(new Route("/percentage/{value:int:range(0,100)}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/temperature/25");
+        AssertRouteResolvesToNone("/temperature/100");
+        AssertRouteResolvesToNone("/temperature/-51");
+    
+        AssertRouteResolvesTo<Page1>("/percentage/50");
+        AssertRouteResolvesToNone("/percentage/101");
+        AssertRouteResolvesToNone("/percentage/-1");
+    }
+    
+    [Test]
+    public void TestAlphaConstraint()
+    {
+        RouteManager.AddRoute(new Route("/category/{name:alpha}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/category/electronics");
+        AssertRouteResolvesTo<Page1>("/category/Books");
+        AssertRouteResolvesToNone("/category/123");
+        AssertRouteResolvesToNone("/category/games-and-toys");
+    }
+
+    [Test]
+    public void TestRegexConstraint()
+    {
+        RouteManager.AddRoute(new Route("/email/{address:regex([a-z]+@[a-z]+\\.[a-z]{2,})}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/email/test@example.com");
+        AssertRouteResolvesToNone("/email/invalid-email");
+    }
+
+    [Test]
+    public void TestRequiredConstraint()
+    {
+        RouteManager.AddRoute(new Route("/comment/{text:required}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/comment/hello");
+        AssertRouteResolvesToNone("/comment/");
+    }
+
+    [Test]
+    public void TestMultipleSegmentsWithConstraints()
+    {
+        RouteManager.AddRoute(new Route("/blog/{year:int:range(2000,2023)}/{month:int:range(1,12)}/{slug:required}", typeof(BlogPost)));
+    
+        AssertRouteResolvesTo<BlogPost>("/blog/2023/12/my-first-post");
+        AssertRouteResolvesToNone("/blog/1999/12/post"); // year too low
+        AssertRouteResolvesToNone("/blog/2023/13/post"); // invalid month
+        AssertRouteResolvesToNone("/blog/2023/12/"); // missing slug
+    }
+
+    [Test]
+    public void TestComplexRouteWithMultipleConstraints()
+    {
+        RouteManager.AddRoute(new Route(
+            "/docs/{department:alpha}/{category:length(2,10)}/{subcategory:regex([a-z-]+)}/{docId:guid}", 
+            typeof(DocumentPage)));
+    
+        AssertRouteResolvesTo<DocumentPage>(
+            "/docs/sales/marketing/social-media/550e8400-e29b-41d4-a716-446655440000");
+        AssertRouteResolvesToNone(
+            "/docs/123/marketing/social-media/550e8400-e29b-41d4-a716-446655440000"); // department not alpha
+        AssertRouteResolvesToNone(
+            "/docs/sales/a/social-media/550e8400-e29b-41d4-a716-446655440000"); // category too short
     }
 }
