@@ -304,12 +304,12 @@ public class Tests
     }
 
     [Test]
-    public void TestEqualPriorityLastMatchWins()
+    public void TestEqualPriorityFirstMatchWins()
     {
         RouteManager.AddRoute(new Route("/content/{id:int}", typeof(ProductsPage), 5));
         RouteManager.AddRoute(new Route("/content/{id:int}", typeof(UsersPage), 5));
         
-        AssertRouteResolvesTo<UsersPage>("/content/123");
+        AssertRouteResolvesTo<ProductsPage>("/content/123");
     }
 
     [Test]
@@ -482,5 +482,76 @@ public class Tests
     public void TestOptionalParametersOrderThrows()
     {
         Assert.Throws<ArgumentException>(() => new Route("/{a?}/b", typeof(Page1)));
+    }
+    
+    [Test]
+    public void TestDefaultValueParameterParsing()
+    {
+        Route route = new Route("/test/{arg=default}", typeof(Page1));
+        RouteSegment segment = route.Segments.First(s => s.Type == RouteSegmentTypes.Dynamic);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(segment.DefaultValue, Is.EqualTo("default"));
+            Assert.That(segment.IsOptional, Is.False);
+        }
+    }
+
+    [Test]
+    public void TestDefaultValueAndOptionalThrows()
+    {
+        Assert.Throws<ArgumentException>(() => new Route("/{arg=default?}", typeof(Page1)));
+    }
+    
+    [Test]
+    public void TestDefaultValueAndOptionalThrows2()
+    {
+        Assert.Throws<ArgumentException>(() => new Route("/{arg?=default}", typeof(Page1)));
+    }
+    
+    [Test]
+    public void TestDefaultValueUsedWhenSegmentMissing()
+    {
+        RouteManager.AddRoute(new Route("/products/{category=Books}", typeof(ProductsPage)));
+        MatchResult result = RouteManager.Match("/products");
+        
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.IsMatch, Is.True);
+            Assert.That(result.Params["category"], Is.EqualTo("Books"));
+        }
+    }
+    
+    [Test]
+    public void TestDefaultValueUsedWhenSegmentMissing2()
+    {
+        RouteManager.AddRoute(new Route("/products2/{category=Books}/{arg2=Val}/{arg3=1}", typeof(ProductsPage)));
+        MatchResult result = RouteManager.Match("/products2");
+        
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.IsMatch, Is.True);
+            Assert.That(result.Params["category"], Is.EqualTo("Books"));
+            Assert.That(result.Params["arg2"], Is.EqualTo("Val"));
+            Assert.That(result.Params["arg3"], Is.EqualTo("1"));
+        }
+    }
+
+    class ConstraintA
+    {
+        public int Arg { get; set; }
+    }
+
+    class ConstraintB
+    {
+        public string Arg { get; set; }
+    }
+    
+    [Test]
+    public void TestConstraintOverload()
+    {
+        RouteManager.AddRoute(new Route("/constraint/{arg:int}", typeof(ConstraintA)));
+        RouteManager.AddRoute(new Route("/constraint/{arg:string}", typeof(ConstraintB)));
+    
+        AssertRouteResolvesTo<ConstraintA>("/constraint/4");
     }
 }

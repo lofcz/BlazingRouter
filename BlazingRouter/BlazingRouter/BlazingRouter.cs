@@ -169,35 +169,67 @@ public class Route
                 if (parts.Count == 0)
                     continue;
 
-                string paramName = parts[0];
+                string paramNameWithDefault = parts[0];
                 List<string> constraints = parts.Skip(1).ToList();
                 bool isOptional = false;
+                string? defaultValue = null;
 
+                // Split parameter name and default value
+                int equalsIndex = paramNameWithDefault.IndexOf('=');
+                string paramName;
+                if (equalsIndex >= 0)
+                {
+                    paramName = paramNameWithDefault[..equalsIndex];
+                    defaultValue = paramNameWithDefault[(equalsIndex + 1)..];
+    
+                    // reject both optional and default arg
+                    if (paramName.EndsWith('?') || defaultValue.EndsWith('?'))
+                    {
+                        throw new ArgumentException("Segment cannot be both optional and have a default value.");
+                    }
+                }
+                else
+                {
+                    paramName = paramNameWithDefault;
+                }
+
+                // Check for optional in parameter name
+                if (paramName.EndsWith('?'))
+                {
+                    if (defaultValue != null)
+                    {
+                        throw new ArgumentException("Segment cannot be both optional and have a default value.");
+                    }
+                    
+                    paramName = paramName[..^1];
+                    isOptional = true;
+                }
+                
                 if (constraints.Count > 0)
                 {
                     string lastConstraint = constraints[^1];
                     if (lastConstraint.EndsWith('?'))
                     {
+                        if (defaultValue != null)
+                        {
+                            throw new ArgumentException("Segment cannot be both optional and have a default value.");
+                        }
                         constraints[^1] = lastConstraint[..^1];
                         isOptional = true;
                     }
                 }
-                else
-                {
-                    if (paramName.EndsWith('?'))
-                    {
-                        paramName = paramName[..^1];
-                        isOptional = true;
-                    }
-                }
 
-                constraints = constraints.Where(c => !string.IsNullOrEmpty(c)).ToList();
-
+                parsedSegment.DefaultValue = defaultValue;
                 parsedSegment.LiteralValue = paramName.ToLowerInvariant();
                 parsedSegment.Constraints = constraints.Count > 0 ? constraints : null;
                 parsedSegment.IsOptional = isOptional;
-                parsedSegment.RawSegment = "__reservedDynamic";
+                parsedSegment.RawSegment = "__dynamic";
                 localSegment = RouteSegmentTypes.Dynamic;
+
+                if (isOptional)
+                {
+                    hasOptional = true;
+                }
             }
             else if (segmentSpan.Length == 1 && segmentSpan[0] == '*')
             {
@@ -411,17 +443,20 @@ public class RouteSegment
     public RouteSegmentTypes Type { get; set; }
     public List<string>? Constraints { get; set; }
     public bool IsOptional { get; set; }
+    public string? DefaultValue { get; set; }
 }
 
 
 public class RadixTreeNode
 {
     public Dictionary<string, RadixTreeNode?>? Childs { get; set; }
+    public Dictionary<string, List<RadixTreeNode>>? DynamicNodes { get; set; }
     public Route? Handler { get; set; }
     public string Text { get; set; }
     public string? ParamName { get; set; }
     public RouteSegmentTypes Type { get; set; }
-    public List<RouteConstraint> Constraints { get; set; } = new();
+    public List<RouteConstraint> Constraints { get; set; } = [];
+    public string? DefaultValue { get; set; } 
 
     public RadixTreeNode(string text, RouteSegmentTypes type, Route? handler)
     {
@@ -507,41 +542,39 @@ public class RadixTree
             Containers.Add(container);
             InsertRoute(container, RootNode);
         }
+
+        int z = 0;
     }
+    
     
     private static List<List<RouteSegment>> GenerateTruncations(List<RouteSegment> segments)
     {
-        List<List<RouteSegment>> truncations = [];
-        int firstOptionalIndex = -1;
+        var truncations = new List<List<RouteSegment>>();
 
+        // Generate valid truncation points
         for (int i = 0; i < segments.Count; i++)
         {
-            if (segments[i].IsOptional)
+            bool allSubsequentOptional = true;
+            // Check if all segments after current index are optional or have defaults
+            for (int j = i + 1; j < segments.Count; j++)
             {
-                firstOptionalIndex = i;
-                break;
+                if (!segments[j].IsOptional && segments[j].DefaultValue == null)
+                {
+                    allSubsequentOptional = false;
+                    break;
+                }
+            }
+
+            if (allSubsequentOptional)
+            {
+                truncations.Add(segments.Take(i + 1).ToList());
             }
         }
 
-        if (firstOptionalIndex is -1)
-        {
-            truncations.Add(segments);
-            return truncations;
-        }
+        // Always include the full route
+        truncations.Add(segments);
 
-        int requiredCount = firstOptionalIndex;
-        
-        if (requiredCount > 0)
-        {
-            truncations.Add(segments.Take(requiredCount).ToList());
-        }
-
-        for (int i = firstOptionalIndex; i < segments.Count; i++)
-        {
-            truncations.Add(segments.Take(i + 1).ToList());
-        }
-
-        return truncations;
+        return truncations.Distinct().ToList();
     }
     
     private static void InsertRoute(RouteContainer route, RadixTreeNode rootNode)
@@ -551,28 +584,93 @@ public class RadixTree
         for (int index = 0; index < route.Segments.Count; index++)
         {
             RouteSegment segment = route.Segments[index];
-            ptr = InsertRouteSegment(segment, ptr, route.Route, index == route.Segments.Count - 1);
+            // Mark as routable if this is the last segment in the truncation
+            bool isRoutable = index == route.Segments.Count - 1;
+            ptr = InsertRouteSegment(segment, ptr, route.Route, isRoutable);
         }
+    }
+    
+    // Compare constraints by predefined priority
+    private static int CompareConstraintPriority(RadixTreeNode a, RadixTreeNode b)
+    {
+        int GetTypePriority(List<RouteConstraint> constraints)
+        {
+            if (constraints.Count == 0) return int.MaxValue;
+            return constraints.Min(c => c.Type switch {
+                "int" => 1,
+                "guid" => 2,
+                "long" => 3,
+                _ => 10
+            });
+        }
+
+        int priorityCompare = GetTypePriority(a.Constraints).CompareTo(GetTypePriority(b.Constraints));
+        if (priorityCompare != 0) return priorityCompare;
+    
+        // Higher route priority comes first
+        return (b.Handler?.Priority ?? 0).CompareTo(a.Handler?.Priority ?? 0);
+    }
+    
+    private class ConstraintComparer : IEqualityComparer<RouteConstraint>
+    {
+        public bool Equals(RouteConstraint x, RouteConstraint y) 
+            => x.Type == y.Type && x.Value == y.Value && x.Value2 == y.Value2;
+    
+        public int GetHashCode(RouteConstraint obj) 
+            => HashCode.Combine(obj.Type, obj.Value, obj.Value2);
     }
 
     private static RadixTreeNode InsertRouteSegment(RouteSegment segment, RadixTreeNode parent, Route handler, bool isRoutable)
     {
         parent.Childs ??= [];
-        RadixTreeNode newNode = new RadixTreeNode(segment.RawSegment, segment.Type, isRoutable ? handler : null);
 
-        if (segment is { Type: RouteSegmentTypes.Dynamic })
+        if (segment.Type == RouteSegmentTypes.Dynamic)
         {
-            newNode.ParamName = segment.LiteralValue;
+            RadixTreeNode dynamicNode = new RadixTreeNode("__dynamic", RouteSegmentTypes.Dynamic, isRoutable ? handler : null)
+            {
+                ParamName = segment.LiteralValue,
+                DefaultValue = segment.DefaultValue
+            };
             
-            if (segment.Constraints is not null)
+            // Add constraints
+            if (segment.Constraints != null)
             {
                 foreach (string constraint in segment.Constraints)
                 {
-                    newNode.AddConstraint(constraint);
-                }   
+                    dynamicNode.AddConstraint(constraint);
+                }
             }
+            
+            string paramName = dynamicNode.ParamName!;
+            parent.DynamicNodes ??= [];
+            
+            if (!parent.DynamicNodes.TryGetValue(paramName, out List<RadixTreeNode>? nodes))
+            {
+                nodes = [];
+                parent.DynamicNodes[paramName] = nodes;
+            }
+            
+            var existingNode = nodes.FirstOrDefault(n => 
+                n.Constraints.SequenceEqual(dynamicNode.Constraints, new ConstraintComparer()));
+        
+            if (existingNode != null)
+            {
+                // Replace if higher priority
+                if (handler.Priority > existingNode.Handler?.Priority)
+                {
+                    existingNode.Handler = handler;
+                    existingNode.DefaultValue = dynamicNode.DefaultValue;
+                }
+                return existingNode;
+            }
+        
+            nodes.Add(dynamicNode);
+            nodes.Sort(CompareConstraintPriority);
+            return dynamicNode;
         }
 
+        RadixTreeNode newNode = new RadixTreeNode(segment.RawSegment, segment.Type, isRoutable ? handler : null);
+        
         if (parent.Childs.TryGetValue(segment.RawSegment, out RadixTreeNode? node) && node is not null)
         {
             if (isRoutable)
@@ -583,12 +681,17 @@ public class RadixTree
                     node.Handler = handler;
 
                     // update descendants
-                    if (segment is { Type: RouteSegmentTypes.Dynamic, Constraints.Count: > 0 })
+                    if (segment is { Type: RouteSegmentTypes.Dynamic })
                     {
-                        node.Constraints.Clear();
-                        foreach (string constraint in segment.Constraints)
+                        node.DefaultValue = segment.DefaultValue;
+                        
+                        if (segment.Constraints?.Count > 0)
                         {
-                            node.AddConstraint(constraint);
+                            node.Constraints.Clear();
+                            foreach (string constraint in segment.Constraints)
+                            {
+                                node.AddConstraint(constraint);
+                            }
                         }
                     }
                 }
@@ -613,9 +716,12 @@ public class RadixTree
     {
         if (node.Node == RootNode)
         {
-            return new ParametrizedRouteResult {Success = false};
+            return new ParametrizedRouteResult
+            {
+                Success = false
+            };
         }
-        
+    
         RoutePrototype pr = new RoutePrototype(node.Node?.Text ?? string.Empty);
 
         return new ParametrizedRouteResult
@@ -678,9 +784,42 @@ public class RadixTree
 
         return FindNodeRecursiveDescent(RootNode, context);
     }
+    
+    private static void CollectDefaultValues(RadixTreeNode node, Dictionary<string, string> parameters)
+    {
+        // Add current node's default value if applicable
+        if (node.ParamName != null && node.DefaultValue != null && !parameters.ContainsKey(node.ParamName))
+        {
+            parameters[node.ParamName] = node.DefaultValue;
+        }
+
+        // Recurse into child nodes
+        if (node.Childs != null)
+        {
+            foreach (var child in node.Childs.Values)
+            {
+                if (child != null) CollectDefaultValues(child, parameters);
+            }
+        }
+
+        // Recurse into dynamic nodes
+        if (node.DynamicNodes != null)
+        {
+            foreach (var dynamicList in node.DynamicNodes.Values)
+            {
+                foreach (var dynamicNode in dynamicList)
+                {
+                    CollectDefaultValues(dynamicNode, parameters);
+                }
+            }
+        }
+    }
 
     private static ResolvedRouteResult FindNodeRecursiveDescent(RadixTreeNode currentNode, ParseContext context)
     {
+        // Before starting, populate default values from current node
+        CollectDefaultValues(currentNode, context.Params);
+        
         // update best match
         if (currentNode.Handler is not null && (context.BestMatch is null || currentNode.Handler.Priority > context.BestMatch.Handler?.Priority))
         {
@@ -691,10 +830,13 @@ public class RadixTree
         // are we finished?
         if (context.CurrentIndex >= context.Segments.Count)
         {
+            var resultParams = new Dictionary<string, string>(context.Params);
+            CollectDefaultValues(currentNode, resultParams);
+        
             return new ResolvedRouteResult
             {
                 Node = currentNode,
-                Params = new Dictionary<string, string>(context.Params),
+                Params = resultParams,
                 IsExactMatch = true,
                 LastMatchedNode = currentNode
             };
@@ -726,37 +868,32 @@ public class RadixTree
         }
 
         // 2. try dynamic match
-        if (currentNode.Childs.TryGetValue("__reservedDynamic", out RadixTreeNode? paramNode) && paramNode is not null)
+        if (currentNode.DynamicNodes is not null)
         {
-            bool isValid = true;
-            
-            if (paramNode.Constraints.Count > 0)
+            foreach (var paramEntry in currentNode.DynamicNodes)
             {
-                isValid = paramNode.Constraints.All(constraint =>
+                string paramName = paramEntry.Key;
+                foreach (var dynamicNode in paramEntry.Value)
                 {
-                    if (RouteConstraintValidator.Validators.TryGetValue(constraint.Type, out Func<string, RouteConstraint, bool>? validator))
+                    bool isValid = dynamicNode.Constraints.Count == 0 || 
+                                   dynamicNode.Constraints.All(c => 
+                                       RouteConstraintValidator.Validators[c.Type](currentSegment, c)
+                                   );
+
+                    if (isValid)
                     {
-                        return validator(currentSegment, constraint);
+                        context.Params[paramName] = currentSegment;
+                        context.CurrentIndex++;
+                        var result2 = FindNodeRecursiveDescent(dynamicNode, context);
+                        context.CurrentIndex--;
+
+                        if (result2.IsExactMatch)
+                            return result2;
+
+                        context.Params.Remove(paramName);
                     }
-                    
-                    return false; // unk constrain
-                });
-            }
-
-            if (isValid)
-            {
-                string paramName = paramNode.ParamName ?? string.Empty;
-                context.Params[paramName] = currentSegment;
-        
-                context.CurrentIndex++;
-                ResolvedRouteResult paramResult = FindNodeRecursiveDescent(paramNode, context);
-                context.CurrentIndex--;
-
-                if (paramResult.IsExactMatch)
-                    return paramResult;
-
-                context.Params.Remove(paramName);
-            }
+                }
+            }   
         }
 
         // 3. try wildcard
