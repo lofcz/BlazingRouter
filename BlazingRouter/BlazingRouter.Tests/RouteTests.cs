@@ -101,7 +101,8 @@ public class Tests
         
         // base
         RouteManager.AddRoute(new Route("/test/{arg1:int}", typeof(Page1)));
-        
+        RouteManager.AddRoute(new Route("/teststring/{arg1}", typeof(Page1)));
+
         // products
         RouteManager.AddRoute(new Route("/products/{category:alpha}", typeof(ProductsPage)));
         RouteManager.AddRoute(new Route("/products/{category:alpha}/{id:int}", typeof(ProductsPage)));
@@ -120,6 +121,12 @@ public class Tests
     public void TestDynamicSegment()
     {
         AssertRouteResolvesTo<Page1>("/test/4");
+    }
+    
+    [Test]
+    public void TestDynamicSegmentCaseInsensitive()
+    {
+        AssertRouteResolvesTo<Page1>("/TeSt/4");
     }
     
     [Test]
@@ -187,6 +194,18 @@ public class Tests
     public void TestParameterValuesFromSetup()
     {
         AssertRouteHasParam("/test/2", "arg1", "2");
+    }
+    
+    [Test]
+    public void TestParameterValuesCaseSensitive()
+    {
+        AssertRouteHasParam("/teststring/HELLO", "arg1", "HELLO");
+    }
+    
+    [Test]
+    public void TestParameterValuesCaseSensitive2()
+    {
+        AssertRouteHasParam("/teststring/hello", "arg1", "hello");
     }
 
     [Test]
@@ -588,5 +607,127 @@ public class Tests
     
         AssertRouteResolvesTo<DocumentPage>("/docs/some/path-here");
         AssertRouteResolvesToNone("/docs/InvalidPath123");
+    }
+    
+    [Test]
+    public void TestValidatorFunctionality()
+    {
+        Validator intValidator = RouteConstraintValidator.Validators["int"];
+        Validator guidValidator = RouteConstraintValidator.Validators["guid"];
+    
+        Assert.Multiple(() =>
+        {
+            Assert.That(intValidator.Validate("123", new RouteConstraint("int")), Is.True);
+            Assert.That(intValidator.Validate("abc", new RouteConstraint("int")), Is.False);
+            Assert.That(guidValidator.Validate("550e8400-e29b-41d4-a716-446655440000", new RouteConstraint("guid")), Is.True);
+            Assert.That(guidValidator.Validate("invalid-guid", new RouteConstraint("guid")), Is.False);
+        });
+    }
+    
+    [Test]
+    public void TestAddCustomValidator()
+    {
+        // Custom validator that checks if number is even
+        RouteConstraintValidator.AddValidator("even", 100, (value, _) =>
+        {
+            if (!int.TryParse(value, out int num))
+                return false;
+            return num % 2 == 0;
+        });
+
+        RouteManager.AddRoute(new Route("/number/{value:even}", typeof(Page1)));
+        
+        Assert.Multiple(() =>
+        {
+            AssertRouteResolvesTo<Page1>("/number/2");
+            AssertRouteResolvesToNone("/number/3");
+            Assert.That(RouteConstraintValidator.HasValidator("even"), Is.True);
+        });
+    }
+
+    [Test]
+    public void TestCustomValidatorWithParameters()
+    {
+        // Custom validator that checks if number is divisible by given value
+        RouteConstraintValidator.AddValidator("divisibleBy", 100, (value, constraint) =>
+        {
+            if (!int.TryParse(value, out int num) || 
+                !int.TryParse(constraint.Value, out int divisor))
+                return false;
+            return num % divisor == 0;
+        });
+
+        RouteManager.AddRoute(new Route("/number/{value:divisibleBy(3)}", typeof(Page1)));
+        
+        Assert.Multiple(() =>
+        {
+            AssertRouteResolvesTo<Page1>("/number/9");
+            AssertRouteResolvesTo<Page1>("/number/12");
+            AssertRouteResolvesToNone("/number/10");
+        });
+    }
+
+    [Test]
+    public void TestRemoveValidator()
+    {
+        // Add and then remove a validator
+        RouteConstraintValidator.AddValidator("temporary", 100, (_, _) => true);
+        Assert.That(RouteConstraintValidator.HasValidator("temporary"), Is.True);
+
+        bool removed = RouteConstraintValidator.RemoveValidator("temporary");
+        Assert.Multiple(() =>
+        {
+            Assert.That(removed, Is.True);
+            Assert.That(RouteConstraintValidator.HasValidator("temporary"), Is.False);
+        });
+    }
+
+    [Test]
+    public void TestValidatorPriority()
+    {
+        // Add two validators for the same route pattern but with different priorities
+        RouteConstraintValidator.AddValidator("lowPriority", 200, (value, _) => true);
+        RouteConstraintValidator.AddValidator("highPriority", 100, (value, _) => true);
+        
+        RouteManager.AddRoute(new Route("/testPriority/{value:lowPriority}", typeof(Page1)));
+        RouteManager.AddRoute(new Route("/testPriority/{value:highPriority}", typeof(ProductsPage)));
+
+        AssertRouteResolvesTo<ProductsPage>("/testPriority/value"); // High priority route should win
+    }
+    
+    [Test]
+    public void TestValidatorPriority2()
+    {
+        // Add two validators for the same route pattern but with different priorities
+        RouteConstraintValidator.AddValidator("lowPriority", 200, (value, _) => true);
+        RouteConstraintValidator.AddValidator("highPriority", 100, (value, _) => true);
+        
+        RouteManager.AddRoute(new Route("/testPriority/{value:highPriority}", typeof(ProductsPage)));
+        RouteManager.AddRoute(new Route("/testPriority/{value:lowPriority}", typeof(Page1)));
+ 
+        AssertRouteResolvesTo<ProductsPage>("/testPriority/value"); // High priority route should win
+    }
+
+    [Test]
+    public void TestComplexCustomValidator()
+    {
+        // Custom validator that checks if string matches specific pattern
+        RouteConstraintValidator.AddValidator("username", 100, (value, _) =>
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            if (value.Length is < 3 or > 20) return false;
+            return char.IsLetter(value[0]) && value.All(c => char.IsLetterOrDigit(c) || c == '_');
+        });
+
+        RouteManager.AddRoute(new Route("/user/{name:username}", typeof(UsersPage)));
+        
+        Assert.Multiple(() =>
+        {
+            AssertRouteResolvesTo<UsersPage>("/user/John123");
+            AssertRouteResolvesTo<UsersPage>("/user/Alice_Smith");
+            AssertRouteResolvesToNone("/user/123John");  // Doesn't start with letter
+            AssertRouteResolvesToNone("/user/Jo");       // Too short
+            AssertRouteResolvesToNone("/user/J@hn");     // Invalid character
+        });
     }
 }
