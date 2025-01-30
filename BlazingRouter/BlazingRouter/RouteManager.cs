@@ -217,7 +217,6 @@ public class RouteManager
     
         if (custom.MatchedRoute is null && segments.Length == 1)
         {
-            // Kontrola, zda je segment1 známý controller
             if (Controllers.Contains(segments[0].ToLowerInvariant()))
             {
                 string[] segmentsWithIndex = [segments[0], "index"];

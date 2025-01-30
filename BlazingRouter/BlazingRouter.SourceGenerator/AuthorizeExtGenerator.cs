@@ -88,7 +88,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
             // Vytvoříme mapu hodnot a názvů pro daný enum
             Dictionary<int, string> valueToNameMap = new Dictionary<int, string>();
 
-            if (enumType is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeKind == TypeKind.Enum)
+            if (enumType is INamedTypeSymbol { TypeKind: TypeKind.Enum } namedTypeSymbol)
             {
                 foreach (IFieldSymbol? member in namedTypeSymbol.GetMembers().OfType<IFieldSymbol>())
                 {

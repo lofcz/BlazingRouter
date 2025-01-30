@@ -554,4 +554,39 @@ public class Tests
     
         AssertRouteResolvesTo<ConstraintA>("/constraint/4");
     }
+    
+    [Test]
+    public void TestDoubleStarCatchAllRoute()
+    {
+        RouteManager.AddRoute(new Route("/blog/{**slug}", typeof(BlogPost)));
+    
+        AssertRouteResolvesTo<BlogPost>("/blog/2023/12/my-post");
+        AssertRouteHasParam("/blog/2023/12/my-post", "slug", "2023/12/my-post");
+    }
+
+    [Test]
+    public void TestRouteCannotHaveBothSingleAndDoubleStar()
+    {
+        Assert.Throws<ArgumentException>(() => new Route("/invalid/{**slug}/*", typeof(Page1)));
+        Assert.Throws<ArgumentException>(() => new Route("/*/invalid/{**slug}", typeof(Page1)));
+    }
+
+    [Test]
+    public void TestDoubleStarCaptureAll()
+    {
+        RouteManager.AddRoute(new Route("/api/{**rest}", typeof(ApiEndpoint)));
+        AssertRouteResolvesTo<ApiEndpoint>("/api/users/123");
+        AssertRouteHasParam("/api/users/123", "rest", "users/123");
+        AssertRouteResolvesTo<ApiEndpoint>("/api/posts/456/comments");
+        AssertRouteHasParam("/api/posts/456/comments", "rest", "posts/456/comments");
+    }
+
+    [Test]
+    public void TestDoubleStarConstraints()
+    {
+        RouteManager.AddRoute(new Route("/docs/{**path:regex(^[a-z/-]+$)}", typeof(DocumentPage)));
+    
+        AssertRouteResolvesTo<DocumentPage>("/docs/some/path-here");
+        AssertRouteResolvesToNone("/docs/InvalidPath123");
+    }
 }
