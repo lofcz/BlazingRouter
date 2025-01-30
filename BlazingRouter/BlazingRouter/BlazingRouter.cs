@@ -9,19 +9,20 @@ namespace BlazingRouter;
 
 /// <summary>
 /// A route. Routes use the following syntax:<br/>
-/// <i>1.</i> segments are divided by forward slashes <c>/</c><br/>
-/// <i>2.</i> a route consists of zero or more segments, for example <c>/test/ping</c><br/>
+/// <i>1.</i> Routes consist of segments, which are divided by <c>/</c> (forward slash)<br/>
+/// <i>2.</i> a route consists of zero or more segments, for example <c>/test/ping</c> uses two segments<br/>
 /// <i>3.</i> a segment is defined as:<br/>
 /// <i>3a)</i> alphanumeric literal, for example <c>test</c><br/>
 /// <i>3b)</i> alphanumeric literal enclosed in curly brackets <c>{test}</c> (query argument), for example <c>/product/{name}</c><br/>
 /// <i>3c)</i> star symbol <c>*</c> (wildcard), captures anything. <c>/blog/{id}/*</c> makes <c>/blog/2/my-book</c> a valid route. If wildcard is used, no further segments can be used for the route.<br/>
-/// <i>4.</i> a route defined as query argument (3b) may use one or more constrains, delimited by <c>:</c> (colon)<br/>
+/// <i>4.</i> a segment defined as query argument (3b) may use one or more constrains, delimited by <c>:</c> (colon)<br/>
 /// <i>4a)</i> type constrain: <c>{arg:int|bool|datetime|decimal|double|float|guid|long}</c><br/>
 /// <i>4b)</i> length constraint: <c>{arg:minlength(val)|maxlength(val)|length(val)|length(min,max))</c><br/>
 /// <i>4c)</i> numeric value constraint: <c>{arg:min(val)|max(val)|range(min,max)}</c><br/>
 /// <i>4d)</i> string content constraint: <c>{arg:alpha}</c> (one or more alphabetical characters, a-z, case-insensitive)<br/>
 /// <i>4e)</i> regex constraint: <c>{arg:regex(str)}</c> (for example <c>{arg:regex(:(.*))}</c> constrains <c>arg</c> to regex <c>:(.*)</c>)<br/>
 /// <i>4f)</i> required constraint: <c>{arg:required}</c> (enforce that the argument can't be empty)
+/// <i>5.</i> a segment defined as query argument (3b) may be flagged as optional by <c>?</c> (question mark). Multiple segments can be marked as optional, but all optional segments must come after mandatory segments<br/>
 /// </summary>
 public class Route
 {
@@ -129,72 +130,105 @@ public class Route
     
     private void ParseSegments()
     {
-    if (UriSegments is null)
-    {
-        return;
-    }
-
-    RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
-
-    foreach (string routeSegment in UriSegments)
-    {
-        RouteSegment parsedSegment = new RouteSegment();
-        ReadOnlySpan<char> segmentSpan = routeSegment.AsSpan().Trim();
-        RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
-
-        if (segmentSpan.Length >= 2 && segmentSpan[0] == '{' && segmentSpan[^1] == '}')
+        if (UriSegments is null)
         {
-            // parse dynamic segment with constraints
-            ReadOnlySpan<char> innerSpan = segmentSpan.Slice(1, segmentSpan.Length - 2);
-            var parts = new List<string>();
-            int partStart = 0;
+            return;
+        }
 
-            for (int i = 0; i <= innerSpan.Length; i++)
+        RouteSegmentTypes maxSegment = RouteSegmentTypes.Static;
+        bool hasOptional = false;
+
+        foreach (string routeSegment in UriSegments)
+        {
+            RouteSegment parsedSegment = new RouteSegment();
+            ReadOnlySpan<char> segmentSpan = routeSegment.AsSpan().Trim();
+            RouteSegmentTypes localSegment = RouteSegmentTypes.Static;
+
+            if (segmentSpan.Length >= 2 && segmentSpan[0] == '{' && segmentSpan[^1] == '}')
             {
-                if (i == innerSpan.Length || innerSpan[i] == ':')
+                ReadOnlySpan<char> innerSpan = segmentSpan.Slice(1, segmentSpan.Length - 2);
+                List<string> parts = new List<string>();
+                int partStart = 0;
+
+                for (int i = 0; i <= innerSpan.Length; i++)
                 {
-                    if (partStart < i)
+                    if (i == innerSpan.Length || innerSpan[i] == ':')
                     {
-                        ReadOnlySpan<char> part = innerSpan.Slice(partStart, i - partStart).Trim();
-                        if (!part.IsEmpty)
+                        if (partStart < i)
                         {
-                            parts.Add(part.ToString().ToLowerInvariant());
+                            ReadOnlySpan<char> part = innerSpan.Slice(partStart, i - partStart).Trim();
+                            if (!part.IsEmpty)
+                            {
+                                parts.Add(part.ToString());
+                            }
                         }
+                        partStart = i + 1;
                     }
-                    partStart = i + 1;
                 }
+
+                if (parts.Count == 0)
+                    continue;
+
+                string paramName = parts[0];
+                List<string> constraints = parts.Skip(1).ToList();
+                bool isOptional = false;
+
+                if (constraints.Count > 0)
+                {
+                    string lastConstraint = constraints[^1];
+                    if (lastConstraint.EndsWith('?'))
+                    {
+                        constraints[^1] = lastConstraint[..^1];
+                        isOptional = true;
+                    }
+                }
+                else
+                {
+                    if (paramName.EndsWith('?'))
+                    {
+                        paramName = paramName[..^1];
+                        isOptional = true;
+                    }
+                }
+
+                constraints = constraints.Where(c => !string.IsNullOrEmpty(c)).ToList();
+
+                parsedSegment.LiteralValue = paramName.ToLowerInvariant();
+                parsedSegment.Constraints = constraints.Count > 0 ? constraints : null;
+                parsedSegment.IsOptional = isOptional;
+                parsedSegment.RawSegment = "__reservedDynamic";
+                localSegment = RouteSegmentTypes.Dynamic;
             }
-
-            if (parts.Count == 0)
-                continue;
-
-            parsedSegment.LiteralValue = parts[0];
-            if (parts.Count > 1)
+            else if (segmentSpan.Length == 1 && segmentSpan[0] == '*')
             {
-                parsedSegment.Constraints = parts.Skip(1).ToList();
+                localSegment = RouteSegmentTypes.Wildcard;
+                parsedSegment.RawSegment = "*";
+            }
+            else
+            {
+                parsedSegment.RawSegment = segmentSpan.ToString().ToLowerInvariant();
             }
 
-            parsedSegment.RawSegment = "__reservedDynamic";
-            localSegment = RouteSegmentTypes.Dynamic;
-        }
-        else if (segmentSpan.Length == 1 && segmentSpan[0] == '*')
-        {
-            localSegment = RouteSegmentTypes.Wildcard;
-            parsedSegment.RawSegment = "*";
-        }
-        else
-        {
-            parsedSegment.RawSegment = segmentSpan.ToString().ToLowerInvariant();
-        }
+            if (maxSegment is RouteSegmentTypes.Wildcard)
+            {
+                break;
+            }
 
-        if (maxSegment == RouteSegmentTypes.Wildcard)
-            break;
+            if (hasOptional && !parsedSegment.IsOptional && localSegment != RouteSegmentTypes.Wildcard)
+            {
+                throw new ArgumentException("Optional parameters must come after all required parameters.");
+            }
 
-        parsedSegment.Type = localSegment;
-        Segments.Add(parsedSegment);
-        maxSegment = localSegment;
+            if (parsedSegment.IsOptional)
+            {
+                hasOptional = true;
+            }
+
+            parsedSegment.Type = localSegment;
+            Segments.Add(parsedSegment);
+            maxSegment = localSegment;
+        }
     }
-}
 }
 
 public class BlazingRouter
@@ -376,6 +410,7 @@ public class RouteSegment
     public string RawSegment { get; set; }
     public RouteSegmentTypes Type { get; set; }
     public List<string>? Constraints { get; set; }
+    public bool IsOptional { get; set; }
 }
 
 
@@ -456,14 +491,57 @@ public class RadixTree
     public void AddRoute(Route route)
     {
         Routes.Add(route);
-        
-        RouteContainer container = new RouteContainer(route)
+
+        /* resolve optional segments as all valid variations of the route, for example:
+           /api/{arg1?}/{arg2} is resolved as: /api, /api/{arg1}, /api/{arg1}/{arg2}
+        */
+        List<List<RouteSegment>> truncations = GenerateTruncations(route.Segments);
+
+        foreach (List<RouteSegment> trunc in truncations)
         {
-            Segments = route.Segments
-        };
+            RouteContainer container = new RouteContainer(route)
+            {
+                Segments = trunc
+            };
+            
+            Containers.Add(container);
+            InsertRoute(container, RootNode);
+        }
+    }
+    
+    private static List<List<RouteSegment>> GenerateTruncations(List<RouteSegment> segments)
+    {
+        List<List<RouteSegment>> truncations = [];
+        int firstOptionalIndex = -1;
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (segments[i].IsOptional)
+            {
+                firstOptionalIndex = i;
+                break;
+            }
+        }
+
+        if (firstOptionalIndex is -1)
+        {
+            truncations.Add(segments);
+            return truncations;
+        }
+
+        int requiredCount = firstOptionalIndex;
         
-        Containers.Add(container);
-        InsertRoute(container, RootNode);
+        if (requiredCount > 0)
+        {
+            truncations.Add(segments.Take(requiredCount).ToList());
+        }
+
+        for (int i = firstOptionalIndex; i < segments.Count; i++)
+        {
+            truncations.Add(segments.Take(i + 1).ToList());
+        }
+
+        return truncations;
     }
     
     private static void InsertRoute(RouteContainer route, RadixTreeNode rootNode)

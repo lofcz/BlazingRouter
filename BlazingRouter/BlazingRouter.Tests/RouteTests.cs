@@ -59,6 +59,11 @@ class SearchPage
     public int Page { get; set; }
 }
 
+class ControllerPage
+{
+    
+}
+
 
 public class Tests
 {
@@ -425,5 +430,57 @@ public class Tests
             "/docs/123/marketing/social-media/550e8400-e29b-41d4-a716-446655440000"); // department not alpha
         AssertRouteResolvesToNone(
             "/docs/sales/a/social-media/550e8400-e29b-41d4-a716-446655440000"); // category too short
+    }
+    
+    [Test]
+    public void TestOptionalParameters()
+    {
+        RouteManager.AddRoute(new Route("/api/my/{color}/{id:int?}/{name?}", typeof(ControllerPage)));
+
+        AssertRouteResolvesTo<ControllerPage>("/api/my/red");
+        AssertRouteResolvesTo<ControllerPage>("/api/my/red/5");
+        AssertRouteResolvesTo<ControllerPage>("/api/my/red/5/joe");
+        AssertRouteResolvesToNone("/api/my/red/5/joe/extra");
+
+        // Verify parameters
+        MatchResult match = RouteManager.Match("/api/my/red");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(match.Params["color"], Is.EqualTo("red"));
+            Assert.That(match.Params.ContainsKey("id"), Is.False);
+            Assert.That(match.Params.ContainsKey("name"), Is.False);
+        }
+
+        match = RouteManager.Match("/api/my/red/5");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(match.Params["color"], Is.EqualTo("red"));
+            Assert.That(match.Params["id"], Is.EqualTo("5"));
+            Assert.That(match.Params.ContainsKey("name"), Is.False);
+        }
+
+        match = RouteManager.Match("/api/my/red/5/joe");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(match.Params["color"], Is.EqualTo("red"));
+            Assert.That(match.Params["id"], Is.EqualTo("5"));
+            Assert.That(match.Params["name"], Is.EqualTo("joe"));
+        }
+    }
+
+    [Test]
+    public void TestOptionalParameterConstraints()
+    {
+        RouteManager.AddRoute(new Route("/test/{id:int?}", typeof(Page1)));
+    
+        AssertRouteResolvesTo<Page1>("/test");
+        AssertRouteResolvesTo<Page1>("/test/123");
+        AssertRouteResolvesToNone("/test/abc");
+    }
+
+    [Test]
+    public void TestOptionalParametersOrderThrows()
+    {
+        Assert.Throws<ArgumentException>(() => new Route("/{a?}/b", typeof(Page1)));
     }
 }
