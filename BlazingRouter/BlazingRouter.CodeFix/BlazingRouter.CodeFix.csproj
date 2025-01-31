@@ -11,7 +11,7 @@
         <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
         <PackageTags>router,routing,middleware</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
-        <Version>1.0.15</Version>
+        <Version>1.0.16</Version>
         <IsPackable>true</IsPackable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>BlazingRouter.CodeFix</PackageId>
