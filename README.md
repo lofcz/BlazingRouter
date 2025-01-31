@@ -1,3 +1,6 @@
+[![BlazingRouter](https://badgen.net/nuget/v/BlazingRouter?v=302&icon=nuget&label=BlazingRouter)](https://www.nuget.org/packages/BlazingRouter)
+[![BlazingRouter.CodeFix](https://badgen.net/nuget/v/BlazingRouter.CodeFix?v=302&icon=nuget&label=BlazingRouter.CodeFix)](https://www.nuget.org/packages/BlazingRouter.CodeFix)
+
 # BlazingRouter
 
 <img align="left" width="128" height="128" alt="Te Reo Icon" src="https://github.com/user-attachments/assets/2e8033f1-ad2c-4756-8224-078bd39b0afb" />
