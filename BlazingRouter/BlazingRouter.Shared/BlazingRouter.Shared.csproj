@@ -12,7 +12,7 @@
         <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageIcon>icon.png</PackageIcon>
-        <Version>1.0.12</Version>
+        <Version>1.0.13</Version>
     </PropertyGroup>
 
     <ItemGroup>
