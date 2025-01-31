@@ -5,7 +5,7 @@
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <Version>1.0.13</Version>
+        <Version>1.0.14</Version>
         <PackageProjectUrl>https://github.com/lofcz/BlazingRouter</PackageProjectUrl>
         <RepositoryUrl>https://github.com/lofcz/BlazingRouter</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
