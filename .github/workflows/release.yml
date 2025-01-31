@@ -134,38 +134,47 @@ jobs:
     - name: Build
       if: env.SHOULD_RELEASE == 'true'
       run: |
-        # First build main projects
-        MAIN_PROJECTS=(
-          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
+        # Build projects in correct order
+        PROJECTS=(
+          # First build dependencies
           "./BlazingRouter/BlazingRouter.Shared/BlazingRouter.Shared.csproj"
           "./BlazingRouter/BlazingRouter.SourceGenerator/BlazingRouter.SourceGenerator.csproj"
           "./BlazingRouter/BlazingRouter.Analyzer/BlazingRouter.Analyzer.csproj"
           "./BlazingRouter/BlazingRouter.CodeFix/BlazingRouter.CodeFix.csproj"
+          # Then build main project
+          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
         )
         
-        for PROJECT in "${MAIN_PROJECTS[@]}"; do
+        # First restore all
+        for PROJECT in "${PROJECTS[@]}"; do
+          echo "Restoring $PROJECT..."
+          dotnet restore "$PROJECT"
+        done
+        
+        # Then build all
+        for PROJECT in "${PROJECTS[@]}"; do
           echo "Building $PROJECT..."
           dotnet build "$PROJECT" \
             --configuration Release \
-            --no-dependencies
+            --no-restore
         done
-
+      
     - name: Pack
       if: env.SHOULD_RELEASE == 'true'
       run: |
         # Create output directory
         mkdir -p nupkgs
         
-        # Pack main projects
-        PROJECTS_TO_PACK=(
-          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
+        # Pack projects in same order
+        PROJECTS=(
           "./BlazingRouter/BlazingRouter.Shared/BlazingRouter.Shared.csproj"
           "./BlazingRouter/BlazingRouter.SourceGenerator/BlazingRouter.SourceGenerator.csproj"
           "./BlazingRouter/BlazingRouter.Analyzer/BlazingRouter.Analyzer.csproj"
           "./BlazingRouter/BlazingRouter.CodeFix/BlazingRouter.CodeFix.csproj"
+          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
         )
         
-        for PROJECT in "${PROJECTS_TO_PACK[@]}"; do
+        for PROJECT in "${PROJECTS[@]}"; do
           echo "Packing $PROJECT..."
           dotnet pack "$PROJECT" \
             --configuration Release \
