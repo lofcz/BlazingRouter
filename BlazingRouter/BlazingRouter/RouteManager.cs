@@ -47,7 +47,6 @@ public class RouteManager
     private static readonly List<Route> IndexRoutes = [];
     internal static Route? IndexHomeRoute;
     private static readonly HashSet<string> Controllers = [];
-    private static readonly Dictionary<string, bool> UsedExpandedRoutes = [];
     
     public RouteManager(IMemoryCache cache)
     {
@@ -83,28 +82,27 @@ public class RouteManager
         foreach (Type t in PageComponentTypes)
         {
             string[]? segments = t.FullName?[(t.FullName.IndexOf("Pages", StringComparison.OrdinalIgnoreCase) + 6)..]?.Split('.');
-            UsedExpandedRoutes.TryAdd(segments.ToCsv("/") ?? string.Empty, true);
 
             if (segments?.Length > 0)
             {
+                string template = string.Join('/', segments);
+                
                 AddController(segments[0]);
-            }
-
-            Routes.Add(new Route(segments, t));
-            List<RouteAttribute> routes = t.GetCustomAttributes<RouteAttribute>().ToList();
-
-            if (routes.Count > 0)
-            {
-                foreach (RouteAttribute route in routes)
-                {
-                    string[] routeSegments = route.Template.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    UsedExpandedRoutes.TryAdd(routeSegments.ToCsv("/") ?? string.Empty, true);
-                    Routes.Add(new Route(routeSegments, t));
-                }
-            }
+                Routes.Add(new Route(template, t));
             
-            List<Route> addedRoutes = builder.OnPageScanned?.Invoke(t) ?? [];
-            Routes.AddRange(addedRoutes);
+                List<RouteAttribute> routes = t.GetCustomAttributes<RouteAttribute>().ToList();
+
+                if (routes.Count > 0)
+                {
+                    foreach (RouteAttribute route in routes)
+                    {
+                        Routes.Add(new Route(route.Template, t));
+                    }
+                }
+            
+                List<Route> addedRoutes = builder.OnPageScanned?.Invoke(t) ?? [];
+                Routes.AddRange(addedRoutes);   
+            }
         }
 
         foreach (Route route in Routes)
@@ -124,7 +122,7 @@ public class RouteManager
 
             if (onlyUnauthorized || anyone)
             {
-                AddToUnauthorizedRoutes(route.UriSegments.ToCsv("/") ?? string.Empty);
+                AddToUnauthorizedRoutes(route.Template);
             }
 
             if (redirectUnauthorized && redirectUnauthorizedAttr is not null)

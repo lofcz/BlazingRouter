@@ -134,6 +134,7 @@ internal class PatternParser
 /// </summary>
 public class Route
 {
+    public string Template { get; set; }
     public int Priority { get; }
     public List<string>? UriSegments { get; set; }
     public List<RouteSegment> Segments { get; set; } = [];
@@ -158,6 +159,7 @@ public class Route
     /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
     public Route(string pattern, Type handler, int priority = 0)
     {
+        Template = pattern;
         UriSegments = SplitPattern(pattern);
         Handler = handler;
         Priority = priority;
@@ -173,6 +175,7 @@ public class Route
     /// <param name="priority">Optional priority, use numbers > 0 for higher priority</param>
     public Route(string pattern, Type handler, List<IRole> authorizedRoles, int priority = 0)
     {
+        Template = pattern;
         UriSegments = SplitPattern(pattern);
         Handler = handler;
         Priority = priority;
@@ -182,31 +185,8 @@ public class Route
     
     internal Route(string pattern)
     {
+        Template = pattern;
         UriSegments = SplitPattern(pattern);
-        ParseSegments();
-    }
-    
-    /// <summary>
-    /// Creates a route from an array of segments.
-    /// </summary>
-    /// <param name="uriSegments"></param>
-    /// <param name="handler"></param>
-    internal Route(string[] uriSegments, Type handler)
-    {
-        UriSegments = uriSegments.ToList();
-        Handler = handler;
-        ParseSegments();
-    }
-    
-    /// <summary>
-    /// Creates a route from an enumerable strings of segments.
-    /// </summary>
-    /// <param name="uriSegments"></param>
-    /// <param name="handler"></param>
-    internal Route(IEnumerable<string> uriSegments, Type handler)
-    {
-        UriSegments = uriSegments.ToList();
-        Handler = handler;
         ParseSegments();
     }
     
