@@ -574,6 +574,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                           using System.Reflection;
                           using Microsoft.Extensions.DependencyInjection;
                           using BlazingRouter.Shared;
+                          using BlazingRouter;
 
                           #nullable enable
 
