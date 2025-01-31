@@ -129,21 +129,24 @@ jobs:
     
     - name: Restore dependencies
       if: env.SHOULD_RELEASE == 'true'
-      run: dotnet restore
+      run: dotnet restore ./BlazingRouter/BlazingRouter.sln
       
     - name: Build
       if: env.SHOULD_RELEASE == 'true'
       run: |
         # Build only non-demo and non-benchmark projects
-        for proj in $(find . -name "*.csproj" ! -path "*/BlazingRouter.Demo/*" ! -path "*/BlazingRouter.Benchmark/*"); do
-          dotnet build "$proj" --configuration Release --no-restore
-        done
+        dotnet build ./BlazingRouter/BlazingRouter.sln \
+          --configuration Release \
+          --no-restore \
+          /p:BuildProjectReferences=true \
+          /p:BuildBlazingRouter.Demo=false \
+          /p:BuildBlazingRouter.Benchmark=false
       
     - name: Pack
       if: env.SHOULD_RELEASE == 'true'
       run: |
         # Pack only non-demo and non-benchmark projects
-        for proj in $(find . -name "*.csproj" ! -path "*/BlazingRouter.Demo/*" ! -path "*/BlazingRouter.Benchmark/*"); do
+        for proj in $(find ./BlazingRouter -name "*.csproj" ! -path "*/BlazingRouter.Demo/*" ! -path "*/BlazingRouter.Benchmark/*"); do
           dotnet pack "$proj" --configuration Release --no-build --output nupkgs
         done
     
