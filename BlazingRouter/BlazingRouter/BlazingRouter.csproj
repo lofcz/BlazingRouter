@@ -14,7 +14,7 @@
         <RepositoryType>git</RepositoryType>
         <PackageTags>router,middleware,routing</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
-        <Version>1.0.11</Version>
+        <Version>1.0.12</Version>
     </PropertyGroup>
 
     <ItemGroup>
