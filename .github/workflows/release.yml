@@ -134,36 +134,44 @@ jobs:
     - name: Build
       if: env.SHOULD_RELEASE == 'true'
       run: |
-        # Build solution excluding demo and benchmark projects
-        dotnet build ./BlazingRouter/BlazingRouter.sln \
-          --configuration Release \
-          --no-restore \
-          /p:BuildProjectReferences=true \
-          --no-dependencies \
-          /nowarn:MSB3202,MSB3277,NU1701 \
-          /p:SkipInvalidConfigurations=true
-      
-          - name: Pack
-          if: env.SHOULD_RELEASE == 'true'
-          run: |
-            # List of projects to pack
-            PROJECTS_TO_PACK=(
-              "BlazingRouter"
-              "BlazingRouter.Analyzer"
-              "BlazingRouter.CodeFix"
-              "BlazingRouter.SourceGenerator"
-              "BlazingRouter.Shared"
-            )
-            
-            for PROJECT in "${PROJECTS_TO_PACK[@]}"; do
-              if [ -f "./BlazingRouter/$PROJECT/$PROJECT.csproj" ]; then
-                echo "Packing $PROJECT..."
-                dotnet pack "./BlazingRouter/$PROJECT/$PROJECT.csproj" \
-                  --configuration Release \
-                  --no-build \
-                  --output nupkgs
-              fi
-            done
+        # First build main projects
+        MAIN_PROJECTS=(
+          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
+          "./BlazingRouter/BlazingRouter.Shared/BlazingRouter.Shared.csproj"
+          "./BlazingRouter/BlazingRouter.SourceGenerator/BlazingRouter.SourceGenerator.csproj"
+          "./BlazingRouter/BlazingRouter.Analyzer/BlazingRouter.Analyzer.csproj"
+          "./BlazingRouter/BlazingRouter.CodeFix/BlazingRouter.CodeFix.csproj"
+        )
+        
+        for PROJECT in "${MAIN_PROJECTS[@]}"; do
+          echo "Building $PROJECT..."
+          dotnet build "$PROJECT" \
+            --configuration Release \
+            --no-dependencies
+        done
+
+    - name: Pack
+      if: env.SHOULD_RELEASE == 'true'
+      run: |
+        # Create output directory
+        mkdir -p nupkgs
+        
+        # Pack main projects
+        PROJECTS_TO_PACK=(
+          "./BlazingRouter/BlazingRouter/BlazingRouter.csproj"
+          "./BlazingRouter/BlazingRouter.Shared/BlazingRouter.Shared.csproj"
+          "./BlazingRouter/BlazingRouter.SourceGenerator/BlazingRouter.SourceGenerator.csproj"
+          "./BlazingRouter/BlazingRouter.Analyzer/BlazingRouter.Analyzer.csproj"
+          "./BlazingRouter/BlazingRouter.CodeFix/BlazingRouter.CodeFix.csproj"
+        )
+        
+        for PROJECT in "${PROJECTS_TO_PACK[@]}"; do
+          echo "Packing $PROJECT..."
+          dotnet pack "$PROJECT" \
+            --configuration Release \
+            --no-build \
+            --output nupkgs
+        done
     
     - name: Create Release
       if: env.SHOULD_RELEASE == 'true'
