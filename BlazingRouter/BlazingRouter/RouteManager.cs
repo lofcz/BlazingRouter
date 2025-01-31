@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
@@ -37,13 +38,14 @@ public class MatchResult
 
 public class RouteManager
 {
+    public static BlazingRouter Router;
+    
     internal static readonly List<Route> Routes = [];
     internal static IBaseBlazingRouterBuilder Builder;
     
     private static List<Type> PageComponentTypes;
     private static readonly List<Route> IndexRoutes = [];
     internal static Route? IndexHomeRoute;
-    private static BlazingRouter Router;
     private static readonly HashSet<string> Controllers = [];
     private static readonly Dictionary<string, bool> UsedExpandedRoutes = [];
     
@@ -188,6 +190,22 @@ public class RouteManager
         }
     }
 
+    public static bool TryMatch(string route, [NotNullWhen(true)] out MatchResult? result, out Exception? exception, ClaimsPrincipal? principal = null)
+    {
+        try
+        {
+            exception = null;
+            result = Match(route.Split("/", StringSplitOptions.RemoveEmptyEntries), principal);
+            return result.IsMatch;
+        }
+        catch (Exception e)
+        {
+            exception = e;
+            result = null;
+            return false;
+        }
+    }
+    
     public static MatchResult Match(string route, ClaimsPrincipal? principal = null)
     {
         return Match(route.Split("/", StringSplitOptions.RemoveEmptyEntries), principal);
