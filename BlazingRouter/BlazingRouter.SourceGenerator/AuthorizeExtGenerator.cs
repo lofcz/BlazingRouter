@@ -376,7 +376,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
     SourcegenEnumMetadata? prefabEnum,
     SourceProductionContext context)
     {
-       string prefabCtors = prefabEnum != null
+       string prefabCtors = prefabEnum is not null
         ? $$"""
             
             
@@ -384,6 +384,11 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                     private static readonly List<{{roleEnum.Name}}AuthRole> {{p.MemberName}}Roles = [ {{string.Join(", ", p.Roles.Where(x => !string.IsNullOrEmpty(x.Name)).Select(r => $"new {roleEnum.Name}AuthRole({roleEnum.Name}.{r.Name})"))}} ];
                     """))}}
 
+                    /// <summary>
+                    /// Initializes a new instance of the authorization attribute with roles defined by a role prefab.
+                    /// </summary>
+                    /// <param name="prefab">A predefined role prefab that represents a collection of roles.
+                    /// The user must have at least one of the roles defined in the prefab to access the resource.</param>
                     public AuthorizeExt({{prefabEnum.Value.Name}} prefab)
                     {
                         roles = prefab switch
@@ -395,6 +400,12 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                         };
                     }
 
+                    /// <summary>
+                    /// Initializes a new instance of the authorization attribute with roles defined by multiple role prefabs.
+                    /// </summary>
+                    /// <param name="prefabs">An array of predefined role prefabs. Each prefab represents a collection of roles.
+                    /// The resulting role set is a union of all roles from all prefabs.
+                    /// The user must have at least one role from the combined set to access the resource.</param>
                     public AuthorizeExt(params {{prefabEnum.Value.Name}}[] prefabs)
                     {
                         var allRoles = new HashSet<{{roleEnum.Name}}AuthRole>();
@@ -462,28 +473,55 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                                     public static {{roleEnum.Name}}? TryParseRole(this IRole role)
                                         => role is {{roleEnum.Name}}AuthRole typedRole ? typedRole.Role : null;
                               }
-                          
+                              
+                              /// <summary>
+                              /// Specifies that access to a class (controller) or method (action) requires authorization.
+                              /// </summary>
                               [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
                               public sealed class AuthorizeExt : AuthorizeExtAttributeBase
                               {
                                   private readonly List<{{roleEnum.Name}}AuthRole> roles;
                                   public override IReadOnlyList<IRole> Roles => roles;
                           
+                                  /// <summary>
+                                  /// User must be authenticated to access the resource. No roles are required.
+                                  /// </summary>
+                                  public AuthorizeExt()
+                                  {
+                                  
+                                  }
+                          
+                                  /// <summary>
+                                  /// User must have the role specified to access the resource.
+                                  /// </summary>
+                                  /// <param name="role">The role required to access the resource.</param>
                                   public AuthorizeExt({{roleEnum.Name}} role)
                                   {
                                       this.roles = new List<{{roleEnum.Name}}AuthRole> { new(role) };
                                   }
                           
+                                  /// <summary>
+                                  /// Initializes a new instance of the authorization attribute with multiple required roles.
+                                  /// </summary>
+                                  /// <param name="roles">An array of roles. User must have at least one of these roles to access the resource.</param>
                                   public AuthorizeExt(params {{roleEnum.Name}}[] roles)
                                   {
                                       this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }
                                   
+                                  /// <summary>
+                                  /// Initializes a new instance of the authorization attribute with a collection of required roles.
+                                  /// </summary>
+                                  /// <param name="roles">A collection of roles. User must have at least one of these roles to access the resource.</param>
                                   public AuthorizeExt(IEnumerable<{{roleEnum.Name}}> roles)
                                   {
                                       this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }
                                   
+                                  /// <summary>
+                                  /// Initializes a new instance of the authorization attribute with a list of required roles.
+                                  /// </summary>
+                                  /// <param name="roles">A list of roles. User must have at least one of these roles to access the resource.</param>
                                   public AuthorizeExt(List<{{roleEnum.Name}}> roles)
                                   {
                                       this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
