@@ -53,6 +53,11 @@ public class Program
 
                     return [];
                 };
+
+                x.OnTypeDiscovered = (type) =>
+                {
+                    return null;
+                };
             })
             .Build();
         

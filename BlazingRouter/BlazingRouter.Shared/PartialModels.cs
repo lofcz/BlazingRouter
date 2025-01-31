@@ -31,7 +31,7 @@ public class AuthRolePrefabsEnumAttribute : Attribute
 
 public abstract class AuthorizeExtAttributeBase : Attribute
 {
-    public abstract IReadOnlyList<IRole> Roles { get; }
+    public abstract IReadOnlyList<IRole>? Roles { get; }
 }
 
 /// <summary>

@@ -513,7 +513,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                               [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
                               public sealed class AuthorizeExt : AuthorizeExtAttributeBase
                               {
-                                  private readonly List<{{roleEnum.Name}}AuthRole> roles;
+                                  private readonly List<{{roleEnum.Name}}AuthRole>? roles;
                                   public override IReadOnlyList<IRole> Roles => roles;
                           
                                   /// <summary>

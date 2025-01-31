@@ -43,7 +43,7 @@ public class RouteManager
     internal static readonly List<Route> Routes = [];
     internal static IBaseBlazingRouterBuilder Builder;
     
-    private static List<Type> PageComponentTypes;
+    private static List<Type> PageComponentTypes = [];
     private static readonly List<Route> IndexRoutes = [];
     internal static Route? IndexHomeRoute;
     private static readonly HashSet<string> Controllers = [];
@@ -58,6 +58,10 @@ public class RouteManager
         Router.Tree.AddRoute(route);
     }
     
+    /// <summary>
+    /// When routing, add implicit routing rule resolving /<see cref="name"/> as /<see cref="name"/>/index.
+    /// </summary>
+    /// <param name="name">Name of the controller</param>
     public static void AddController(string name)
     {
         Controllers.Add(name.ToLowerInvariant());
@@ -77,30 +81,55 @@ public class RouteManager
             }
         }
 
-        PageComponentTypes = assembly.ExportedTypes.Where(t => t.Namespace is not null && (t.IsSubclassOf(typeof(ComponentBase)) || t.IsSubclassOf(typeof(ComponentBaseInternal))) && t.Namespace.Contains(".Pages")).ToList();
-        
-        foreach (Type t in PageComponentTypes)
+        foreach (Type type in assembly.ExportedTypes)
         {
-            string[]? segments = t.FullName?[(t.FullName.IndexOf("Pages", StringComparison.OrdinalIgnoreCase) + 6)..]?.Split('.');
-
-            if (segments?.Length > 0)
+            if (type.Namespace is null)
             {
-                string template = string.Join('/', segments);
-                
-                AddController(segments[0]);
-                Routes.Add(new Route(template, t));
-            
-                List<RouteAttribute> routes = t.GetCustomAttributes<RouteAttribute>().ToList();
+                continue;
+            }
 
-                if (routes.Count > 0)
+            bool isStandardPage = (type.IsSubclassOf(typeof(ComponentBase)) || type.IsSubclassOf(typeof(ComponentBaseInternal))) && type.Namespace.Contains(".Pages");
+            bool routeAdded = false;
+            
+            if (isStandardPage)
+            {
+                string[]? segments = type.FullName?[(type.FullName.IndexOf("Pages", StringComparison.OrdinalIgnoreCase) + 6)..]?.Split('.');
+                
+                if (segments?.Length > 0)
                 {
-                    foreach (RouteAttribute route in routes)
+                    string template = string.Join('/', segments);
+
+                    PageComponentTypes.Add(type);
+                    AddController(segments[0]);
+                    Routes.Add(new Route(template, type));
+                    routeAdded = true;
+            
+                    List<RouteAttribute> routes = type.GetCustomAttributes<RouteAttribute>().ToList();
+
+                    if (routes.Count > 0)
                     {
-                        Routes.Add(new Route(route.Template, t));
+                        foreach (RouteAttribute route in routes)
+                        {
+                            Routes.Add(new Route(route.Template, type));
+                        }
                     }
                 }
-            
-                List<Route> addedRoutes = builder.OnPageScanned?.Invoke(t) ?? [];
+            }
+            else
+            {
+                Route? route = builder.OnTypeDiscovered?.Invoke(type);
+
+                if (route is not null)
+                {
+                    routeAdded = true;
+                    PageComponentTypes.Add(type);
+                    Routes.Add(route);
+                }
+            }
+
+            if (routeAdded)
+            {
+                List<Route> addedRoutes = builder.OnPageScanned?.Invoke(type) ?? [];
                 Routes.AddRange(addedRoutes);   
             }
         }
@@ -133,7 +162,7 @@ public class RouteManager
             
             AuthorizeExtAttributeBase? authAttr = (AuthorizeExtAttributeBase?)Attribute.GetCustomAttributes(route.Handler, typeof(AuthorizeExtAttributeBase), inherit: true).FirstOrDefault();
 
-            if (authAttr is not null && !anyone)
+            if (authAttr is not null && !anyone && authAttr.Roles?.Count > 0)
             {
                 route.AuthorizedRoles = new List<IRole>(authAttr.Roles);
             }

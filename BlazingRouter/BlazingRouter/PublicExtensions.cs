@@ -13,6 +13,7 @@ public interface IBaseBlazingRouterBuilder
     public Func<Type, List<Route>?>? OnPageScanned { get; }
     public Func<HashSet<string>?>? OnSetupAllowedUnauthorizedRoles { get; }
     public Func<ClaimsPrincipal?, string, string?>? OnRedirectUnauthorized { get; }
+    public Func<Type, Route?>? OnTypeDiscovered { get; }
 }
 
 public interface IBlazingRouterBuilder<TEnum> : IBaseBlazingRouterBuilder where TEnum : struct, Enum
@@ -55,6 +56,7 @@ public class BlazingRouterBuilder<TEnum> : IBlazingRouterBuilder<TEnum> where TE
     public Func<Type, List<Route>?>? OnPageScanned => context.OnPageScanned;
     public Func<HashSet<string>?>? OnSetupAllowedUnauthorizedRoles => context.OnSetupAllowedUnauthorizedRoles;
     public Func<ClaimsPrincipal?, string, string?>? OnRedirectUnauthorized => context.OnRedirectUnauthorized;
+    public Func<Type, Route?>? OnTypeDiscovered => context.OnTypeDiscovered;
 
     public IBlazingRouterBuilder<TEnum> Configure(Action<BlazingRouterContext<TEnum>> ctx)
     {
@@ -86,4 +88,12 @@ public class BlazingRouterContext<TEnum> where TEnum : Enum
     /// Arguments: user, route accessed.
     /// </summary>
     public Func<ClaimsPrincipal?, string, string?>? OnRedirectUnauthorized { get; set; }
+    
+    /// <summary>
+    /// Invoked when discovering Page-like types for each type exported by the application as the last step of the discovery process (won't be invoked for known Page types).
+    /// Use this to mark additional types as Pages, for example Pages inheriting from a custom base component by mapping the conventional route for the type.
+    /// If result is not null, <see cref="OnPageScanned"/> will be invoked after <see cref="OnTypeDiscovered"/> and can be used to map additional routes to the type.
+    /// Arguments: discovered type
+    /// </summary>
+    public Func<Type, Route?>? OnTypeDiscovered { get; set; }
 }
