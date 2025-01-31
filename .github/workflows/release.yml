@@ -134,21 +134,36 @@ jobs:
     - name: Build
       if: env.SHOULD_RELEASE == 'true'
       run: |
-        # Build only non-demo and non-benchmark projects
+        # Build solution excluding demo and benchmark projects
         dotnet build ./BlazingRouter/BlazingRouter.sln \
           --configuration Release \
           --no-restore \
           /p:BuildProjectReferences=true \
-          /p:BuildBlazingRouter.Demo=false \
-          /p:BuildBlazingRouter.Benchmark=false
+          --no-dependencies \
+          /nowarn:MSB3202,MSB3277,NU1701 \
+          /p:SkipInvalidConfigurations=true
       
-    - name: Pack
-      if: env.SHOULD_RELEASE == 'true'
-      run: |
-        # Pack only non-demo and non-benchmark projects
-        for proj in $(find ./BlazingRouter -name "*.csproj" ! -path "*/BlazingRouter.Demo/*" ! -path "*/BlazingRouter.Benchmark/*"); do
-          dotnet pack "$proj" --configuration Release --no-build --output nupkgs
-        done
+          - name: Pack
+          if: env.SHOULD_RELEASE == 'true'
+          run: |
+            # List of projects to pack
+            PROJECTS_TO_PACK=(
+              "BlazingRouter"
+              "BlazingRouter.Analyzer"
+              "BlazingRouter.CodeFix"
+              "BlazingRouter.SourceGenerator"
+              "BlazingRouter.Shared"
+            )
+            
+            for PROJECT in "${PROJECTS_TO_PACK[@]}"; do
+              if [ -f "./BlazingRouter/$PROJECT/$PROJECT.csproj" ]; then
+                echo "Packing $PROJECT..."
+                dotnet pack "./BlazingRouter/$PROJECT/$PROJECT.csproj" \
+                  --configuration Release \
+                  --no-build \
+                  --output nupkgs
+              fi
+            done
     
     - name: Create Release
       if: env.SHOULD_RELEASE == 'true'
