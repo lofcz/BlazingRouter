@@ -517,12 +517,12 @@ public static partial class RouteConstraintParser
     private static partial Regex GeneratedConstraintRegex();
 }
 
-public class Validator
+public class RouteSegmentConstraintValidator
 {
     private readonly Func<string, RouteConstraint, bool> validate;
     public int Priority { get; }
 
-    public Validator(int priority, Func<string, RouteConstraint, bool> validate)
+    public RouteSegmentConstraintValidator(int priority, Func<string, RouteConstraint, bool> validate)
     {
         Priority = priority;
         this.validate = validate;
@@ -533,47 +533,47 @@ public class Validator
 
 public static class RouteConstraintValidator
 {
-    public static readonly Dictionary<string, Validator> Validators = new Dictionary<string, Validator>(StringComparer.OrdinalIgnoreCase)
+    public static readonly Dictionary<string, RouteSegmentConstraintValidator> Validators = new Dictionary<string, RouteSegmentConstraintValidator>(StringComparer.OrdinalIgnoreCase)
     {
-        ["int"] = new Validator(1, (value, _) => 
+        ["int"] = new RouteSegmentConstraintValidator(1, (value, _) => 
             int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int _)),
         
-        ["bool"] = new Validator(2, (value, _) => 
+        ["bool"] = new RouteSegmentConstraintValidator(2, (value, _) => 
             bool.TryParse(value, out bool _)),
         
-        ["datetime"] = new Validator(3, (value, _) => 
+        ["datetime"] = new RouteSegmentConstraintValidator(3, (value, _) => 
             DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateTime _)),
         
-        ["decimal"] = new Validator(4, (value, _) => 
+        ["decimal"] = new RouteSegmentConstraintValidator(4, (value, _) => 
             decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal _)),
         
-        ["double"] = new Validator(5, (value, _) => 
+        ["double"] = new RouteSegmentConstraintValidator(5, (value, _) => 
             double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double _)),
         
-        ["float"] = new Validator(6, (value, _) => 
+        ["float"] = new RouteSegmentConstraintValidator(6, (value, _) => 
             float.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out float _)),
         
-        ["guid"] = new Validator(7, (value, _) => 
+        ["guid"] = new RouteSegmentConstraintValidator(7, (value, _) => 
             Guid.TryParse(value, out Guid _)),
         
-        ["long"] = new Validator(8, (value, _) => 
+        ["long"] = new RouteSegmentConstraintValidator(8, (value, _) => 
             long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long _)),
         
-        ["minlength"] = new Validator(9, (value, constraint) =>
+        ["minlength"] = new RouteSegmentConstraintValidator(9, (value, constraint) =>
         {
             if (!int.TryParse(constraint.Value, out int minLength))
                 return false;
             return value.Length >= minLength;
         }),
         
-        ["maxlength"] = new Validator(10, (value, constraint) =>
+        ["maxlength"] = new RouteSegmentConstraintValidator(10, (value, constraint) =>
         {
             if (!int.TryParse(constraint.Value, out int maxLength))
                 return false;
             return value.Length <= maxLength;
         }),
         
-        ["length"] = new Validator(11, (value, constraint) =>
+        ["length"] = new RouteSegmentConstraintValidator(11, (value, constraint) =>
         {
             if (constraint.Value2 == null)
             {
@@ -589,7 +589,7 @@ public static class RouteConstraintValidator
             return value.Length >= minLength && value.Length <= maxLength;
         }),
         
-        ["min"] = new Validator(12, (value, constraint) =>
+        ["min"] = new RouteSegmentConstraintValidator(12, (value, constraint) =>
         {
             if (!int.TryParse(value, out int numValue) || 
                 !int.TryParse(constraint.Value, out int minValue))
@@ -597,7 +597,7 @@ public static class RouteConstraintValidator
             return numValue >= minValue;
         }),
         
-        ["max"] = new Validator(13, (value, constraint) =>
+        ["max"] = new RouteSegmentConstraintValidator(13, (value, constraint) =>
         {
             if (!int.TryParse(value, out int numValue) || 
                 !int.TryParse(constraint.Value, out int maxValue))
@@ -605,7 +605,7 @@ public static class RouteConstraintValidator
             return numValue <= maxValue;
         }),
         
-        ["range"] = new Validator(14, (value, constraint) =>
+        ["range"] = new RouteSegmentConstraintValidator(14, (value, constraint) =>
         {
             if (!int.TryParse(value, out int numValue) || 
                 !int.TryParse(constraint.Value, out int minValue) ||
@@ -614,10 +614,10 @@ public static class RouteConstraintValidator
             return numValue >= minValue && numValue <= maxValue;
         }),
         
-        ["alpha"] = new Validator(15, (value, _) => 
+        ["alpha"] = new RouteSegmentConstraintValidator(15, (value, _) => 
             !string.IsNullOrEmpty(value) && value.All(char.IsLetter)),
         
-        ["regex"] = new Validator(16, (value, constraint) =>
+        ["regex"] = new RouteSegmentConstraintValidator(16, (value, constraint) =>
         {
             if (constraint.Value is null)
                 return false;
@@ -632,7 +632,7 @@ public static class RouteConstraintValidator
             }
         }),
         
-        ["required"] = new Validator(17, (value, _) => 
+        ["required"] = new RouteSegmentConstraintValidator(17, (value, _) => 
             !string.IsNullOrEmpty(value))
     };
     
@@ -650,7 +650,7 @@ public static class RouteConstraintValidator
             return false;
         }
 
-        Validators.Add(name, new Validator(priority, validator));
+        Validators.Add(name, new RouteSegmentConstraintValidator(priority, validator));
         return true;
     }
 
@@ -854,7 +854,7 @@ public class RadixTree
             }
             
             return constraints.Min(c => 
-                RouteConstraintValidator.Validators.TryGetValue(c.Type, out Validator? validator) ? validator.Priority : int.MaxValue
+                RouteConstraintValidator.Validators.TryGetValue(c.Type, out RouteSegmentConstraintValidator? validator) ? validator.Priority : int.MaxValue
             );
         }
     }

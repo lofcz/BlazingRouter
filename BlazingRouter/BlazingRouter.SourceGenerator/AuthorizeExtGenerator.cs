@@ -376,13 +376,46 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
     SourcegenEnumMetadata? prefabEnum,
     SourceProductionContext context)
     {
+        string sharedPrefabLists = prefabEnum is not null ?
+            $$"""
+                
+                public static class {{prefabEnum.Value.Name}}Cls
+                {
+                    {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                    public static readonly List<{{roleEnum.Name}}> {{p.MemberName}}AuthRoles = [ {{string.Join(", ", p.Roles.Where(x => !string.IsNullOrEmpty(x.Name)).Select(r => $"{roleEnum.Name}.{r.Name}"))}} ];
+                    """))}}
+                
+                    {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                    public static readonly List<{{roleEnum.Name}}AuthRole> {{p.MemberName}}Roles = [ {{string.Join(", ", p.Roles.Where(x => !string.IsNullOrEmpty(x.Name)).Select(r => $"new {roleEnum.Name}AuthRole({roleEnum.Name}.{r.Name})"))}} ];
+                    """))}}
+                }
+                """ : string.Empty;
+        
+        string deconstructMethod = prefabEnum is not null
+            ? $$"""
+                    public static class {{prefabEnum.Value.Name}}Extensions
+                    {
+                        /// <summary>
+                        /// Deconstructs a role prefab into its constituent roles.
+                        /// </summary>
+                        /// <param name="prefab">The role prefab to deconstruct.</param>
+                        /// <returns>A list of roles that the prefab represents.</returns>
+                        public static List<{{roleEnum.Name}}> DeconstructPrefab(this {{prefabEnum.Value.Name}} prefab)
+                        {
+                            return prefab switch
+                            {
+                                {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
+                                                                                                     {{prefabEnum.Value.Name}}.{{p.MemberName}} => {{prefabEnum.Value.Name}}Cls.{{p.MemberName}}AuthRoles,
+                                                                                                 """))}}
+                                _ => new List<{{roleEnum.Name}}>()
+                            };
+                        }
+                    }
+                """
+            : string.Empty;
+        
        string prefabCtors = prefabEnum is not null
         ? $$"""
-            
-            
-                    {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-                    private static readonly List<{{roleEnum.Name}}AuthRole> {{p.MemberName}}Roles = [ {{string.Join(", ", p.Roles.Where(x => !string.IsNullOrEmpty(x.Name)).Select(r => $"new {roleEnum.Name}AuthRole({roleEnum.Name}.{r.Name})"))}} ];
-                    """))}}
 
                     /// <summary>
                     /// Initializes a new instance of the authorization attribute with roles defined by a role prefab.
@@ -394,7 +427,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                         roles = prefab switch
                         {
                             {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-                                            {{prefabEnum.Value.Name}}.{{p.MemberName}} => {{p.MemberName}}Roles,
+                                            {{prefabEnum.Value.Name}}.{{p.MemberName}} => {{prefabEnum.Value.Name}}Cls.{{p.MemberName}}Roles,
                             """))}}
                             _ => new List<{{roleEnum.Name}}AuthRole>()
                         };
@@ -414,10 +447,10 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                             switch (prefab)
                             {
                                 {{string.Join("\n", prefabEnum.Value.PrefabMembers.Select(p => $$"""
-                                case {{prefabEnum.Value.Name}}.{{p.MemberName}}:
-                                    allRoles.UnionWith({{p.MemberName}}Roles);
-                                    break;
-                                """))}}
+                                                                                                 case {{prefabEnum.Value.Name}}.{{p.MemberName}}:
+                                                                                                     allRoles.UnionWith({{prefabEnum.Value.Name}}Cls.{{p.MemberName}}Roles);
+                                                                                                     break;
+                                                                                                 """))}}
                             }
                         }
                         
@@ -437,7 +470,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                           #nullable enable
 
                           namespace {{roleEnum.Namespace}}
-                          {
+                          {{{sharedPrefabLists}}
                               public sealed class {{roleEnum.Name}}AuthRole : IRole
                               {
                                   public {{roleEnum.Name}} Role { get; }
@@ -526,7 +559,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
                                   {
                                       this.roles = roles.Select(r => new {{roleEnum.Name}}AuthRole(r)).ToList();
                                   }{{prefabCtors}}
-                              }
+                              }{{deconstructMethod}}
                           }
                           """;
 

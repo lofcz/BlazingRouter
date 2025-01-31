@@ -612,15 +612,15 @@ public class Tests
     [Test]
     public void TestValidatorFunctionality()
     {
-        Validator intValidator = RouteConstraintValidator.Validators["int"];
-        Validator guidValidator = RouteConstraintValidator.Validators["guid"];
+        RouteSegmentConstraintValidator intRouteSegmentConstraintValidator = RouteConstraintValidator.Validators["int"];
+        RouteSegmentConstraintValidator guidRouteSegmentConstraintValidator = RouteConstraintValidator.Validators["guid"];
     
         Assert.Multiple(() =>
         {
-            Assert.That(intValidator.Validate("123", new RouteConstraint("int")), Is.True);
-            Assert.That(intValidator.Validate("abc", new RouteConstraint("int")), Is.False);
-            Assert.That(guidValidator.Validate("550e8400-e29b-41d4-a716-446655440000", new RouteConstraint("guid")), Is.True);
-            Assert.That(guidValidator.Validate("invalid-guid", new RouteConstraint("guid")), Is.False);
+            Assert.That(intRouteSegmentConstraintValidator.Validate("123", new RouteConstraint("int")), Is.True);
+            Assert.That(intRouteSegmentConstraintValidator.Validate("abc", new RouteConstraint("int")), Is.False);
+            Assert.That(guidRouteSegmentConstraintValidator.Validate("550e8400-e29b-41d4-a716-446655440000", new RouteConstraint("guid")), Is.True);
+            Assert.That(guidRouteSegmentConstraintValidator.Validate("invalid-guid", new RouteConstraint("guid")), Is.False);
         });
     }
     
