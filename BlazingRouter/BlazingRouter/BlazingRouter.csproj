@@ -32,4 +32,8 @@
       <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" PrivateAssets="all" />
       <ProjectReference Include="..\BlazingRouter.CodeFix\BlazingRouter.CodeFix.csproj" PrivateAssets="all" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath=""/>
+    </ItemGroup>
 </Project>
