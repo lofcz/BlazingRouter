@@ -559,7 +559,7 @@ public class AuthorizeExtGenerator : IIncrementalGenerator
 
     foreach (PrefabMemberMetadata prefab in prefabEnumMetadata.PrefabMembers)
     {
-        string resolvedRoles = prefab.Roles.Count is 0 ? "none" : string.Join(", ", prefab.Roles.OrderBy(x => x.Name, StringComparer.InvariantCulture).Select(r => $"<see cref=\"{roleEnumMetadata.Namespace}.{roleEnumMetadata.Name}.{r.Name}\"/>"));
+        string resolvedRoles = prefab.Roles.Count is 0 ? "none" : string.Join(", ", prefab.Roles.OrderBy(x => x.Name, StringComparer.InvariantCulture).Select(r => $"<see cref=\"{roleEnumMetadata.Name}.{r.Name}\"/>"));
 
         proxyBuilder.AppendLine($"        /// <summary>");
         proxyBuilder.AppendLine($"        /// Resolved roles: {resolvedRoles}");
