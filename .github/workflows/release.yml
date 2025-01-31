@@ -52,7 +52,7 @@ jobs:
           if [[ " ${IGNORED_PROJECTS[@]} " =~ " ${PROJECT_NAME} " ]]; then
             echo "Skipping ignored project: $PROJECT_NAME"
             continue
-          }
+          fi
           
           # Get current version from csproj
           CURRENT_VERSION=$(grep -oP '(?<=<Version>).*(?=</Version>)' "$proj" || echo "0.0.0")
