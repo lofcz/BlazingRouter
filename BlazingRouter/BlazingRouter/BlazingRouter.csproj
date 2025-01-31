@@ -28,7 +28,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\BlazingRouter.Shared\BlazingRouter.Shared.csproj" />
-      <ProjectReference Include="..\BlazingRouter.SourceGenerator\BlazingRouter.SourceGenerator.csproj" PrivateAssets="all" />
+      <ProjectReference Include="..\BlazingRouter.SourceGenerator\BlazingRouter.SourceGenerator.csproj" />
       <ProjectReference Include="..\BlazingRouter.Analyzer\BlazingRouter.Analyzer.csproj" PrivateAssets="all" />
       <ProjectReference Include="..\BlazingRouter.CodeFix\BlazingRouter.CodeFix.csproj" PrivateAssets="all" />
     </ItemGroup>

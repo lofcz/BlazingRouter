@@ -32,8 +32,4 @@
     <ItemGroup>
         <None Include="icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
-    <PropertyGroup>
-        <IncludeBuildOutput>false</IncludeBuildOutput>
-        <DevelopmentDependency>true</DevelopmentDependency>
-    </PropertyGroup>
 </Project>
